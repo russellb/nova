@@ -280,7 +280,6 @@ class Connection(object):
         if FLAGS.qpid_reconnect_interval:
             self.connection.reconnect_interval_max = FLAGS.qpid_reconnect_interval
         if FLAGS.qpid_reconnect_interval:
-        if FLAGS.qpid_reconnect_interval:
             self.connection.hearbeat = FLAGS.qpid_heartbeat
         if FLAGS.qpid_heartbeat:
             self.connection.hearbeat = FLAGS.qpid_heartbeat
@@ -309,7 +308,7 @@ class Connection(object):
         try:
             self.connection.open()
 
-         except self.connection.ConnectionError, e:
+        except self.connection.ConnectionError, e:
             # We should only get here if max_retries is set.  We'll go
             # ahead and exit in this case.
             err_str = str(e)
