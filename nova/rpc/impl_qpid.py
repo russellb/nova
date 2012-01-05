@@ -88,11 +88,7 @@ class ConsumerBase(object):
             raise ValueError("No callback defined")
 
         message = self.receiver.fetch()
-        callback(message)
-        # WGH - don't need to do the following:
-        # session.acknowledge()
-
-        self.queue.consume(*args, callback=_callback, **options)
+        callback(message.content)
 
     def cancel(self):
         """Cancel the consuming from the queue, if it has started"""
@@ -104,21 +100,19 @@ class ConsumerBase(object):
                 raise
         self.queue = None
 
+    def get_receiver(self):
+        return self.receiver
+
 class DirectConsumer(ConsumerBase):
     """Queue/consumer class for 'direct'"""
 
-    def __init__(self, session, msg_id, callback, tag, **kwargs):
+    def __init__(self, session, msg_id, callback):
         """Init a 'direct' queue.
 
         'session' is the amqp session to use
         'msg_id' is the msg_id to listen on
         'callback' is the callback to call when messages are received
-        'tag' is a unique ID for the consumer on the channel
-
-        Other kombu options may be passed
-        """
-        # Default options
-        #options.update(kwargs)
+        'tag' is a unique ID for the consumer on the channel """
 
         # WGH -This looks dodgy! exchange, queue and key all have the same name!
         exchange_name = msg_id
@@ -132,7 +126,7 @@ class DirectConsumer(ConsumerBase):
 class TopicConsumer(ConsumerBase):
     """Consumer class for 'topic'"""
 
-    def __init__(self, session, topic, callback, tag, **kwargs):
+    def __init__(self, session, topic, callback):
         """Init a 'topic' queue.
 
         'session' is the amqp session to use
@@ -140,10 +134,7 @@ class TopicConsumer(ConsumerBase):
         'callback' is the callback to call when messages are received
         'tag' is a unique ID for the consumer on the session
 
-        Other kombu options may be passed
         """
-        # Default options
-        # options.update(kwargs)
 
         exchange_name = FLAGS.control_exchange
 
@@ -158,25 +149,19 @@ class TopicConsumer(ConsumerBase):
 class FanoutConsumer(ConsumerBase):
     """Consumer class for 'fanout'"""
 
-    def __init__(self, session, topic, callback, tag, **kwargs):
+    def __init__(self, session, topic, callback):
         """Init a 'fanout' queue.
 
         'session' is the amqp session to use
         'topic' is the topic to listen on
         'callback' is the callback to call when messages are received
-        'tag' is a unique ID for the consumer on the session
+        'tag' is a unique ID for the consumer on the session"""
 
-        Other kombu options may be passed
-        """
         unique = uuid.uuid4().hex
         exchange_name = '%s_fanout' % topic
         queue_name = '%s_fanout_%s' % (topic, unique)
 
         address = exchange_name + '; {create:always, node:{type: topic, x-declare:{durable: False, type: fanout, auto-delete: True}}, link:{name:' + queue_name + ', durable: True, x-declare:{durable:False, auto-delete:True}}}'
-
-        # WGH not sure we use these anymore
-        # Default options
-        # options.update(kwargs)
 
         super(FanoutConsumerConsumer, self).__init__(
                 session,
@@ -220,15 +205,13 @@ class DirectPublisher(Publisher):
         """auto-delete isn't implemented for exchanges in qpid but put in here anyway"""
         address = exchange + '/' + msg_id + '; {create:always, node:{type:topic, x-declare:{durable:False, type:Direct, auto-delete:True}}}'
 
-        """ WGH What to do with any args in kwargs???
-        options.update(kwargs)"""
 
         super(DirectPublisher, self).__init__(session,
                 msg_id,
                 address,
                 msg_id,
                 type='direct',
-                **options)
+                **kwargs)
 
 
 class TopicPublisher(Publisher):
@@ -243,15 +226,12 @@ class TopicPublisher(Publisher):
         """auto-delete isn't implemented for exchanges in qpid but put in here anyway"""
         address = exchange + '/' + topic + '; {create:always, node:{type:topic, x-declare:{durable:False, auto-delete:True}}}'
 
-        """ WGH What to do with any args in kwargs???
-        options.update(kwargs)"""
-
         super(TopicPublisher, self).__init__(session,
                 exchange,
                 address,
                 topic,
                 type='topic',
-                **options)
+                **kwargs)
 
 
 class FanoutPublisher(Publisher):
@@ -266,23 +246,19 @@ class FanoutPublisher(Publisher):
         """auto-delete isn't implemented for exchanges in qpid but put in here anyway"""
         self.address = exchange + '; {create:always, node:{type:topic, x-declare:{durable:False, type:fanout, auto-delete:True}}}'
 
-        """ WGH What to do with any args in kwargs???
-        options.update(kwargs)"""
-
         super(FanoutPublisher, self).__init__(session,
                 exchange,
                 address,
                 None,
                 type='fanout',
-                **options)
+                **kwargs)
 
 
 class Connection(object):
     """Connection object."""
 
     def __init__(self):
-        self.consumers = []
-        self.receivers = {}
+        self.consumers = {}
         self.consumer_thread = None
 
         hostname = FLAGS.qpid_hostname
@@ -332,7 +308,6 @@ class Connection(object):
             time.sleep(1)
         try:
             self.connection.open()
-            self.consumer_num = itertools.count(1)  # WGH remove?
 
          except self.connection.ConnectionError, e:
             # We should only get here if max_retries is set.  We'll go
@@ -350,7 +325,7 @@ class Connection(object):
         if self.sessions:
             LOG.debug(_("Re-established AMQP Sessions"))
 
-        for consumer in self.consumers:
+        for k, consumer in self.consumers.iteritems():
             consumer.reconnect(self.session) # hmm which session?
 
         if self.consumers:
@@ -383,15 +358,14 @@ class Connection(object):
         # work around 'memory' transport bug in 1.1.3
         if self.memory_transport:
             self.session._new_queue('ae.undeliver')
-        self.consumers = []
+        self.consumers = {}
 
     def declare_consumer(self, consumer_cls, topic, callback):
         """Create a Consumer using the class that was passed in and
         add it to our list of consumers
         """
-        consumer = consumer_cls(self.session, topic, callback,
-                self.consumer_num.next())
-        self.consumers.append(consumer)
+        consumer = consumer_cls(self.session, topic, callback)
+        self.consumers[str(consumer.get_receiver())] = consumer
         return consumer
 
     def cancel_consumer_thread(self):
@@ -454,7 +428,7 @@ class Connection(object):
             try:
                 for session in self.sessions:
                     nxt_receiver = session.next_receiver(0)
-                    self.receivers[str(nxt_receiver)].consume()
+                    self.consumers[str(nxt_receiver)].consume()
             except MessagingError, m:
                 LOG.exception(_('Failed to consume message from queue: '
                         '%s' % m))
@@ -475,13 +449,10 @@ class Connection(object):
     def create_consumer(self, topic, proxy, fanout=False):
         """Create a consumer that calls a method in a proxy object"""
         if fanout:
-            consumer = FanoutConsumer(self.session, topic, ProxyCallback(proxy),
-                                      self.consumer_num.next())
+            consumer = FanoutConsumer(self.session, topic, ProxyCallback(proxy))
         else:
-            consumer = TopicConsumer(self.session, topic, ProxyCallback(proxy),
-                                self.consumer_num.next())
-        self.consumers.append(consumer)
-        self.receivers[str(consumer.receiver)] = consumer
+            consumer = TopicConsumer(self.session, topic, ProxyCallback(proxy))
+        self.consumers[str(consumer.get_receiver())] = consumer
         return consumer
 
 
