@@ -436,13 +436,12 @@ class Connection(object):
         """Consume from all queues/consumers"""
         while True:
             try:
-                nxt_receiver = self.session.next_receiver(0)
+                nxt_receiver = self.session.next_receiver()
                 self.consumers[str(nxt_receiver)].consume()
             except qpid.messaging.exceptions.MessagingError, m:
                 LOG.exception(_('Failed to consume message from queue: '
                         '%s' % m))
                 self.reconnect()
-                return  # WGH this return good?
 
     def consume_in_thread(self):
         """Consumer from all queues/consumers in a greenthread"""
