@@ -6,6 +6,7 @@ import time
 from nova import rpc
 from nova import flags
 
+
 flags.FLAGS['rpc_backend'].SetDefault('nova.rpc.impl_qpid')
 
 
