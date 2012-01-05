@@ -438,7 +438,7 @@ class Connection(object):
             try:
                 nxt_receiver = self.session.next_receiver(0)
                 self.consumers[str(nxt_receiver)].consume()
-            except MessagingError, m:
+            except qpid.messaging.exceptions.MessagingError, m:
                 LOG.exception(_('Failed to consume message from queue: '
                         '%s' % m))
                 self.reconnect()
