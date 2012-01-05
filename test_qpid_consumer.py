@@ -16,11 +16,11 @@ class PingConsumer(object):
     def __init__(self):
         pass
 
-    def ping(self):
+    def ping(self, context, **kwargs):
         print "Got a ping"
         return "pong"
 
-    def ping_noreply(self):
+    def ping_noreply(self, context, **kwargs):
         print "Got a ping (no reply)"
 
 
