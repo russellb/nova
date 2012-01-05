@@ -353,13 +353,9 @@ class Connection(object):
             sys.exit(1)
         LOG.info(_('Connected to AMQP server on %s' % self.broker))
 
-        for session in self.sessions:
-            session = self.connection.session()
-        if self.sessions:
-            LOG.debug(_("Re-established AMQP Sessions"))
+        self.session = self.connection.session()
 
         for k, consumer in self.consumers.iteritems():
-            # hmm which session?
             consumer.reconnect(self.session)
 
         if self.consumers:
@@ -460,9 +456,8 @@ class Connection(object):
         """Consume from all queues/consumers"""
         while True:
             try:
-                for session in self.sessions:
-                    nxt_receiver = session.next_receiver(0)
-                    self.consumers[str(nxt_receiver)].consume()
+                nxt_receiver = self.session.next_receiver(0)
+                self.consumers[str(nxt_receiver)].consume()
             except MessagingError, m:
                 LOG.exception(_('Failed to consume message from queue: '
                         '%s' % m))
