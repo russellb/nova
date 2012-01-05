@@ -32,7 +32,7 @@ from nova import flags
 from nova.rpc import common as rpc_common
 from nova.rpc.common import RemoteError, LOG
 
-from qpid.messaging import Connection, Message
+import qpid.messaging
 
 # Needed for tests
 eventlet.monkey_patch()
