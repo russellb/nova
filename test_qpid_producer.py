@@ -23,7 +23,12 @@ def main(argv=None):
 
     ctx = context.RequestContext("user", "project")
 
+    print "Testing rpc.cast() ..."
     rpc.cast(ctx, "impl_qpid_test", {"method": "ping_noreply", "args":{}})
+
+    print "Testing rpc.call() ... response: ",
+    res = rpc.call(ctx, "impl_qpid_test", {"method": "ping", "args":{}})
+    print res
 
     return 0
 
