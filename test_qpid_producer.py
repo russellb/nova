@@ -7,6 +7,7 @@ import eventlet
 from nova import rpc
 from nova import flags
 from nova import context
+from nova import log as logging
 
 
 flags.FLAGS['rpc_backend'].SetDefault('nova.rpc.impl_qpid')
@@ -17,6 +18,8 @@ def main(argv=None):
         argv = sys.argv
 
     eventlet.monkey_patch()
+
+    logging.setup()
 
     ctx = context.RequestContext("user", "project")
 
