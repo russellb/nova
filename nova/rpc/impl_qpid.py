@@ -307,9 +307,9 @@ class Connection(object):
         self.consumers = {}
         self.consumer_thread = None
 
-        broker = FLAGS.qpid_hostname + ":" + FLAGS.qpid_port
+        self.broker = FLAGS.qpid_hostname + ":" + FLAGS.qpid_port
         # Create the connection - this does not open the connection
-        self.connection = qpid.messaging.Connection(broker)
+        self.connection = qpid.messaging.Connection(self.broker)
 
         # Check if flags are set and if so set them for the connection
         # before we call open
@@ -351,8 +351,7 @@ class Connection(object):
             LOG.error(_('Unable to connect to AMQP server '
                     'after %(max_retries)d tries: %(err_str)s') % locals())
             sys.exit(1)
-        LOG.info(_('Connected to AMQP server on %(hostname)s:%(port)d' %
-                self.params))
+        LOG.info(_('Connected to AMQP server on %s' % self.broker))
 
         for session in self.sessions:
             session = self.connection.session()
