@@ -44,18 +44,16 @@ FLAGS = flags.FLAGS
 class ConsumerBase(object):
     """Consumer base class."""
 
-    def __init__(self, session, callback, address, tag):
+    def __init__(self, session, callback, address):
         """Declare a queue on an amqp session.
 
         'session' is the amqp session to use
         'callback' is the callback to call when messages are received
-        'tag' is a unique ID for the consumer on the session
 
         queue name, exchange name, and other kombu options are
         passed in here as a dictionary.
         """
         self.callback = callback
-        self.tag = str(tag)
         self.receiver = None
         self.address = address
         self.reconnect(session)
@@ -83,7 +81,7 @@ class ConsumerBase(object):
         raise an exception
         """
 
-        options = {'consumer_tag': self.tag}
+        options = {}
         options['nowait'] = kwargs.get('nowait', False)
         callback = kwargs.get('callback', self.callback)
         if not callback:
@@ -91,16 +89,6 @@ class ConsumerBase(object):
 
         message = self.receiver.fetch()
         callback(message.content)
-
-    def cancel(self):
-        """Cancel the consuming from the queue, if it has started"""
-        try:
-            self.queue.cancel(self.tag)
-        except KeyError, e:
-            # NOTE(comstud): Kludge to get around a amqplib bug
-            if str(e) != "u'%s'" % self.tag:
-                raise
-        self.queue = None
 
     def get_receiver(self):
         return self.receiver
@@ -115,7 +103,7 @@ class DirectConsumer(ConsumerBase):
         'session' is the amqp session to use
         'msg_id' is the msg_id to listen on
         'callback' is the callback to call when messages are received
-        'tag' is a unique ID for the consumer on the channel """
+        """
 
         # WGH -This looks dodgy! exchange, queue and key all have the same name
         exchange_name = msg_id
@@ -131,8 +119,7 @@ class DirectConsumer(ConsumerBase):
         super(DirectConsumer, self).__init__(
                 session,
                 callback,
-                address,
-                tag)
+                address)
 
 
 class TopicConsumer(ConsumerBase):
@@ -144,8 +131,6 @@ class TopicConsumer(ConsumerBase):
         'session' is the amqp session to use
         'topic' is the topic to listen on
         'callback' is the callback to call when messages are received
-        'tag' is a unique ID for the consumer on the session
-
         """
 
         exchange_name = FLAGS.control_exchange
@@ -163,8 +148,7 @@ class TopicConsumer(ConsumerBase):
         super(TopicConsumer, self).__init__(
                 session,
                 callback,
-                address,
-                tag)
+                address)
 
 
 class FanoutConsumer(ConsumerBase):
@@ -176,7 +160,7 @@ class FanoutConsumer(ConsumerBase):
         'session' is the amqp session to use
         'topic' is the topic to listen on
         'callback' is the callback to call when messages are received
-        'tag' is a unique ID for the consumer on the session"""
+        """
 
         unique = uuid.uuid4().hex
         exchange_name = '%s_fanout' % topic
@@ -195,8 +179,7 @@ class FanoutConsumer(ConsumerBase):
         super(FanoutConsumerConsumer, self).__init__(
                 session,
                 callback,
-                address,
-                tag)
+                address)
 
 
 class Publisher(object):
@@ -385,9 +368,6 @@ class Connection(object):
         self.cancel_consumer_thread()
         self.session.close()
         self.session = self.connection.session()
-        # work around 'memory' transport bug in 1.1.3
-        if self.memory_transport:
-            self.session._new_queue('ae.undeliver')
         self.consumers = {}
 
     def declare_consumer(self, consumer_cls, topic, callback):
