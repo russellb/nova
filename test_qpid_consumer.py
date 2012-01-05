@@ -2,6 +2,7 @@
 
 import sys
 import time
+import eventlet
 
 from nova import rpc
 from nova import flags
@@ -25,6 +26,8 @@ class PingConsumer(object):
 def main(argv=None):
     if argv is None:
         argv = sys.argv
+
+    eventlet.monkey_patch()
 
     consumer = PingConsumer()
 

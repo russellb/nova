@@ -2,6 +2,7 @@
 
 import sys
 import time
+import eventlet
 
 from nova import rpc
 from nova import flags
@@ -14,6 +15,8 @@ flags.FLAGS['rpc_backend'].SetDefault('nova.rpc.impl_qpid')
 def main(argv=None):
     if argv is None:
         argv = sys.argv
+
+    eventlet.monkey_patch()
 
     ctx = context.RequestContext("user", "project")
 
