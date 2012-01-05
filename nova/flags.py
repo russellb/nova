@@ -309,6 +309,28 @@ DEFINE_integer('rabbit_max_retries', 0,
         'maximum rabbit connection attempts (0=try forever)')
 DEFINE_string('control_exchange', 'nova', 'the main exchange to connect to')
 DEFINE_boolean('rabbit_durable_queues', False, 'use durable queues')
+
+DEFINE_string('qpid_hostname', 'localhost', 'Qpid broker hostname')
+DEFINE_string('qpid_port', '5672', 'Qpid broker port')
+DEFINE_string('qpid_username', '', 'Username for qpid connection')
+DEFINE_string('qpid_password', '', 'Password for qpid connection')
+DEFINE_string('qpid_sasl_mechanisms', '',
+              'Space separated list of SASL mechanisms to use for auth')
+DEFINE_boolean('qpid_reconnect', True, 'Automatically reconnect')
+DEFINE_integer('qpid_reconnect_timeout', 0, 'Reconnection timeout in seconds')
+DEFINE_integer('qpid_reconnect_limit', 0, 'Max reconnections before giving up')
+DEFINE_integer('qpid_reconnect_interval_min', 0,
+               'Minimum seconds between reconnection attempts')
+DEFINE_integer('qpid_reconnect_interval_max', 0,
+               'Maximum seconds between reconnection attempts')
+DEFINE_integer('qpid_reconnect_interval', 0,
+               'Equivalent to setting max and min to the same value')
+DEFINE_integer('qpid_heartbeat', 5,
+               'Seconds between heartbeats used to keep the connection alive')
+DEFINE_string('qpid_protocol', 'tcp',
+              "Transport to use, either 'tcp' or 'ssl'")
+DEFINE_boolean('qpid_tcp_nodelay', True, 'Disable Nagle algorithm')
+
 DEFINE_list('enabled_apis', ['ec2', 'osapi', 'metadata'],
             'list of APIs to enable by default')
 DEFINE_string('ec2_host', '$my_ip', 'ip of api server')
