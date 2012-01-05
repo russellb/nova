@@ -14,11 +14,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import inspect
 import itertools
 import sys
 import time
 import traceback
-import types
 import uuid
 
 import eventlet
@@ -637,7 +637,7 @@ class ProxyCallback(object):
         try:
             rval = node_func(context=ctxt, **node_args)
             # Check if the result was a generator
-            if isinstance(rval, types.GeneratorType):
+            if inspect.isgenerator(rval):
                 for x in rval:
                     ctxt.reply(x, None)
             else:
