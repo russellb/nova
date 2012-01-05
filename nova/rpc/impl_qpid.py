@@ -65,7 +65,7 @@ class ConsumerBase(object):
         # WGH - Set the capacity. May want to up this.
         self.receiver.capacity = 1
 
-    def consume(self, *args, **kwargs):
+    def consume(self):
         """Actually declare the consumer on the amqp session.  This will
         start the flow of messages from the queue.  Using the
         Connection.iterconsume() iterator will process the messages,
@@ -81,14 +81,8 @@ class ConsumerBase(object):
         raise an exception
         """
 
-        options = {'consumer_tag': self.tag}
-        options['nowait'] = kwargs.get('nowait', False)
-        callback = kwargs.get('callback', self.callback)
-        if not callback:
-            raise ValueError("No callback defined")
-
         message = self.receiver.fetch()
-        callback(message.content)
+        self.callback(message.content)
 
     def cancel(self):
         """Cancel the consuming from the queue, if it has started"""
