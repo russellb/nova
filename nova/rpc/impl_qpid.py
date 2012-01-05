@@ -33,6 +33,7 @@ from nova.rpc import common as rpc_common
 from nova.rpc.common import RemoteError, LOG
 
 import qpid.messaging
+import qpid.messaging.exceptions
 
 # Needed for tests
 eventlet.monkey_patch()
@@ -336,13 +337,13 @@ class Connection(object):
         if self.connection.opened():
             try:
                 self.connection.close()
-            except self.connection.ConnectionError:
+            except qpid.messaging.exceptions.ConnectionError:
                 pass
             time.sleep(1)
         try:
             self.connection.open()
 
-        except self.connection.ConnectionError, e:
+        except qpid.messaging.exceptions.ConnectionError, e:
             # We should only get here if max_retries is set.  We'll go
             # ahead and exit in this case.
             err_str = str(e)
