@@ -64,25 +64,11 @@ class ConsumerBase(object):
         self.receiver = session.receiver(self.address)
         self.receiver.capacity = 1
 
-    def consume(self, *args, **kwargs):
-        """Actually declare the consumer on the amqp session.  This will
-        start the flow of messages from the queue.  Using the
-        Connection.iterconsume() iterator will process the messages,
-        calling the appropriate callback.
-
-        If a callback is specified in kwargs, use that.  Otherwise,
-        use the callback passed during __init__()
-
-        Messages will automatically be acked if the callback doesn't
-        raise an exception
+    def consume(self):
+        """ fetch the message and pass it to the callback object
         """
-
-        callback = kwargs.get('callback', self.callback)
-        if not callback:
-            raise ValueError("No callback defined")
-
         message = self.receiver.fetch()
-        callback(message.content)
+        self.callback(message.content)
 
     def get_receiver(self):
         return self.receiver
