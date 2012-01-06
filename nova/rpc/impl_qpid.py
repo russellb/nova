@@ -20,6 +20,7 @@ import sys
 import time
 import traceback
 import uuid
+import json
 
 import eventlet
 from eventlet import greenpool
@@ -105,17 +106,30 @@ class DirectConsumer(ConsumerBase):
         'callback' is the callback to call when messages are received
         """
 
-        # WGH -This looks dodgy! exchange, queue and key all have the same name
         exchange_name = msg_id
-        address = exchange_name + '/' + msg_id + ';' \
-                    '{create:always,' \
-                        'node:{type: topic, x-declare:' \
-                            '{durable: True, type: direct, auto-delete: True}'\
-                        '},' \
-                        'link:{name:' + msg_id + ', durable: True, x-declare:'\
-                            '{durable:False, auto-delete:True}' \
-                        '}' \
-                    '}'
+
+        addr_opts = {
+            "create": "always",
+            "node": {
+                "type": "topic",
+                "x-declare": {
+                    "durable": True,
+                    "type": "direct",
+                    "auto-delete": True
+                }
+            },
+            "link": {
+                "name": msg_id,
+                "durable": True,
+                "x-declare": {
+                    "durable": False,
+                    "auto-delete": True,
+                }
+            }
+        }
+
+        address = "%s/%s ; %s" % (exchange_name, msg_id, json.dumps(addr_opts))
+
         super(DirectConsumer, self).__init__(
                 session,
                 callback,
@@ -135,15 +149,27 @@ class TopicConsumer(ConsumerBase):
 
         exchange_name = FLAGS.control_exchange
 
-        address = exchange_name + '/' + topic + ';' \
-                    '{create:always,' \
-                      'node:{type: topic, x-declare:' \
-                        '{durable: True, auto-delete: True}'\
-                      '},' \
-                      'link:{name:' + topic + ', durable: True, x-declare:'\
-                        '{durable:False, auto-delete:True, exclusive: False}'\
-                      '}' \
-                    '}'
+        addr_opts = {
+            "create": "always",
+            "node": {
+                "type": "topic",
+                "x-declare": {
+                    "durable": True,
+                    "auto-delete": True
+                }
+            },
+            "link": {
+                "name": topic,
+                "durable": True,
+                "x-declare": {
+                    "durable": False,
+                    "auto-delete": True,
+                    "exclusive": False
+                }
+            }
+        }
+
+        address = "%s/%s ; %s" % (exchange_name, topic, json.dumps(addr_opts))
 
         super(TopicConsumer, self).__init__(
                 session,
@@ -166,15 +192,27 @@ class FanoutConsumer(ConsumerBase):
         exchange_name = '%s_fanout' % topic
         queue_name = '%s_fanout_%s' % (topic, unique)
 
-        address = exchange_name + ';' \
-                '{create:always,' \
-                    'node:{type: topic, x-declare:' \
-                        '{durable: False, type: fanout, auto-delete: True}' \
-                    '},' \
-                    'link:{name:' + queue_name + ', durable: True, x-declare:'\
-                        '{durable:False, auto-delete:True}' \
-                    '}' \
-                '}'
+        addr_opts = {
+            "create": "always",
+            "node": {
+                "type": "topic",
+                "x-declare": {
+                    "durable": False,
+                    "type": "fanout",
+                    "auto-delete": True
+                }
+            },
+            "link": {
+                "name": queue_name,
+                "durable": True,
+                "x-declare": {
+                    "durable": False,
+                    "auto-delete": True,
+                }
+            }
+        }
+
+        address = "%s ; %s" % (exchange_name, json.dumps(addr_opts))
 
         super(FanoutConsumer, self).__init__(
                 session,
@@ -214,14 +252,22 @@ class DirectPublisher(Publisher):
         Kombu options may be passed as keyword args to override defaults
         """
         exchange = msg_id
-        # auto-delete isn't implemented for exchanges in qpid,
-        # but put in here anyway
-        address = exchange + '/' + msg_id + ';' \
-                    '{create:always, ' \
-                        'node:{type:topic, x-declare:' \
-                            '{durable:False, type:Direct, auto-delete:True}' \
-                        '}' \
-                    '}'
+
+        addr_opts = {
+            "create": "always",
+            "node": {
+                "type": "topic",
+                "x-declare": {
+                    "durable": False,
+                    "type": "Direct",
+                    # auto-delete isn't implemented for exchanges in qpid,
+                    # but put in here anyway
+                    "auto-delete": True
+                }
+            }
+        }
+
+        address = "%s/%s ; %s" % (exchange, msg_id, json.dumps(addr_opts))
 
         super(DirectPublisher, self).__init__(session,
                 msg_id,
@@ -240,14 +286,21 @@ class TopicPublisher(Publisher):
         """
 
         exchange = FLAGS.control_exchange
-        # auto-delete isn't implemented for exchanges in qpid,
-        # but put in here anyway
-        address = exchange + '/' + topic + ';' \
-                    '{create:always,' \
-                        'node:{type:topic, x-declare:' \
-                            '{durable:False, auto-delete:True}' \
-                        '}' \
-                    '}'
+
+        addr_opts = {
+            "create": "always",
+            "node": {
+                "type": "topic",
+                "x-declare": {
+                    "durable": False,
+                    # auto-delete isn't implemented for exchanges in qpid,
+                    # but put in here anyway
+                    "auto-delete": True
+                }
+            }
+        }
+
+        address = "%s/%s ; %s" % (exchange, topic, json.dumps(addr_opts))
 
         super(TopicPublisher, self).__init__(session,
                 exchange,
@@ -266,14 +319,21 @@ class FanoutPublisher(Publisher):
         """
         exchange = '%s_fanout' % topic
 
-        # auto-delete isn't implemented for exchanges in qpid,
-        # but put in here anyway
-        address = exchange + ';' \
-                        '{create:always,' \
-                            'node:{type:topic, x-declare:' \
-                              '{durable:False, type:fanout, auto-delete:True}'\
-                            '}' \
-                        '}'
+        addr_opts = {
+            "create": "always",
+            "node": {
+                "type": "topic",
+                "x-declare": {
+                    "durable": False,
+                    "type": "fanout",
+                    # auto-delete isn't implemented for exchanges in qpid,
+                    # but put in here anyway
+                    "auto-delete": True
+                }
+            }
+        }
+
+        address = "%s ; %s" % (exchange, json.dumps(addr_opts))
 
         super(FanoutPublisher, self).__init__(session,
                 exchange,
