@@ -51,9 +51,7 @@ class ConsumerBase(object):
 
         'session' is the amqp session to use
         'callback' is the callback to call when messages are received
-
-        queue name, exchange name, and other kombu options are
-        passed in here as a dictionary.
+        'address' the qpid address string
         """
         self.callback = callback
         self.receiver = None
@@ -61,10 +59,9 @@ class ConsumerBase(object):
         self.reconnect(session)
 
     def reconnect(self, session):
-        """Re-declare the queue after a rabbit reconnect"""
+        """Re-declare the receiver after a qpid reconnect"""
         self.session = session
         self.receiver = session.receiver(self.address)
-        # WGH - Set the capacity. May want to up this.
         self.receiver.capacity = 1
 
     def consume(self, *args, **kwargs):
@@ -83,8 +80,7 @@ class ConsumerBase(object):
         raise an exception
         """
 
-        options = {}
-        options['nowait'] = kwargs.get('nowait', False)
+        options = { "nowait": kwargs.get("nowait", False) }
         callback = kwargs.get('callback', self.callback)
         if not callback:
             raise ValueError("No callback defined")
@@ -116,8 +112,8 @@ class DirectConsumer(ConsumerBase):
                 "x-declare": {
                     "durable": True,
                     "type": "direct",
-                    "auto-delete": True
-                }
+                    "auto-delete": True,
+                },
             },
             "link": {
                 "name": msg_id,
@@ -125,8 +121,8 @@ class DirectConsumer(ConsumerBase):
                 "x-declare": {
                     "durable": False,
                     "auto-delete": True,
-                }
-            }
+                },
+            },
         }
 
         address = "%s/%s ; %s" % (exchange_name, msg_id, json.dumps(addr_opts))
@@ -156,8 +152,8 @@ class TopicConsumer(ConsumerBase):
                 "type": "topic",
                 "x-declare": {
                     "durable": True,
-                    "auto-delete": True
-                }
+                    "auto-delete": True,
+                },
             },
             "link": {
                 "name": topic,
@@ -165,9 +161,9 @@ class TopicConsumer(ConsumerBase):
                 "x-declare": {
                     "durable": False,
                     "auto-delete": True,
-                    "exclusive": False
-                }
-            }
+                    "exclusive": False,
+                },
+            },
         }
 
         address = "%s/%s ; %s" % (exchange_name, topic, json.dumps(addr_opts))
@@ -200,8 +196,8 @@ class FanoutConsumer(ConsumerBase):
                 "x-declare": {
                     "durable": False,
                     "type": "fanout",
-                    "auto-delete": True
-                }
+                    "auto-delete": True,
+                },
             },
             "link": {
                 "name": queue_name,
@@ -209,8 +205,8 @@ class FanoutConsumer(ConsumerBase):
                 "x-declare": {
                     "durable": False,
                     "auto-delete": True,
-                }
-            }
+                },
+            },
         }
 
         address = "%s ; %s" % (exchange_name, json.dumps(addr_opts))
@@ -224,16 +220,12 @@ class FanoutConsumer(ConsumerBase):
 class Publisher(object):
     """Base Publisher class"""
 
-    def __init__(self, session, exchange_name, address, routing_key, **kwargs):
+    def __init__(self, session, address):
         """Init the Publisher class with the exchange_name, routing_key,
         and other options
         """
         self.session = session
         self.address = address
-        """WGH Not sure we need all of these anymore especially kwargs"""
-        self.exchange_name = exchange_name
-        self.routing_key = routing_key
-        self.kwargs = kwargs
         self.reconnect(session)
 
     def reconnect(self, session):
@@ -247,10 +239,8 @@ class Publisher(object):
 
 class DirectPublisher(Publisher):
     """Publisher class for 'direct'"""
-    def __init__(self, session, msg_id, **kwargs):
+    def __init__(self, session, msg_id):
         """init a 'direct' publisher.
-
-        Kombu options may be passed as keyword args to override defaults
         """
         exchange = msg_id
 
@@ -263,27 +253,20 @@ class DirectPublisher(Publisher):
                     "type": "Direct",
                     # auto-delete isn't implemented for exchanges in qpid,
                     # but put in here anyway
-                    "auto-delete": True
-                }
-            }
+                    "auto-delete": True,
+                },
+            },
         }
 
         address = "%s/%s ; %s" % (exchange, msg_id, json.dumps(addr_opts))
 
-        super(DirectPublisher, self).__init__(session,
-                msg_id,
-                address,
-                msg_id,
-                type='direct',
-                **kwargs)
+        super(DirectPublisher, self).__init__(session, address)
 
 
 class TopicPublisher(Publisher):
     """Publisher class for 'topic'"""
-    def __init__(self, session, topic, **kwargs):
+    def __init__(self, session, topic):
         """init a 'topic' publisher.
-
-        Kombu options may be passed as keyword args to override defaults
         """
 
         exchange = FLAGS.control_exchange
@@ -296,27 +279,20 @@ class TopicPublisher(Publisher):
                     "durable": False,
                     # auto-delete isn't implemented for exchanges in qpid,
                     # but put in here anyway
-                    "auto-delete": True
-                }
-            }
+                    "auto-delete": True,
+                },
+            },
         }
 
         address = "%s/%s ; %s" % (exchange, topic, json.dumps(addr_opts))
 
-        super(TopicPublisher, self).__init__(session,
-                exchange,
-                address,
-                topic,
-                type='topic',
-                **kwargs)
+        super(TopicPublisher, self).__init__(session, address)
 
 
 class FanoutPublisher(Publisher):
     """Publisher class for 'fanout'"""
-    def __init__(self, session, topic, **kwargs):
+    def __init__(self, session, topic):
         """init a 'fanout' publisher.
-
-        Kombu options may be passed as keyword args to override defaults
         """
         exchange = '%s_fanout' % topic
 
@@ -329,19 +305,14 @@ class FanoutPublisher(Publisher):
                     "type": "fanout",
                     # auto-delete isn't implemented for exchanges in qpid,
                     # but put in here anyway
-                    "auto-delete": True
-                }
-            }
+                    "auto-delete": True,
+                },
+            },
         }
 
         address = "%s ; %s" % (exchange, json.dumps(addr_opts))
 
-        super(FanoutPublisher, self).__init__(session,
-                exchange,
-                address,
-                None,
-                type='fanout',
-                **kwargs)
+        super(FanoutPublisher, self).__init__(session, address)
 
 
 class Connection(object):
@@ -373,7 +344,7 @@ class Connection(object):
         self.connection.tcp_nodelay = FLAGS.qpid_tcp_nodelay
 
         # Open is part of reconnect -
-        # WGH not sure we need this with the reconnect flags
+        # NOTE(WGH) not sure we need this with the reconnect flags
         self.reconnect()
 
     def reconnect(self):
@@ -404,19 +375,6 @@ class Connection(object):
 
         if self.consumers:
             LOG.debug(_("Re-established AMQP queues"))
-
-    def get_session(self):
-        """WGH May be useless"""
-        return self.session
-
-    def connect_error(self, exc, interval):
-        """Callback when there are connection re-tries by kombu"""
-        info = self.params.copy()
-        info['intv'] = interval
-        info['e'] = exc
-        LOG.error(_('AMQP server on %(hostname)s:%(port)d is'
-                ' unreachable: %(e)s. Trying again in %(intv)d'
-                ' seconds.') % info)
 
     def close(self):
         """Close/release this connection"""
@@ -534,6 +492,7 @@ class Pool(pools.Pool):
         LOG.debug('Pool creating new connection')
         return Connection()
 
+
 # Create a ConnectionPool to use for RPC calls.  We'll order the
 # pool as a stack (LIFO), so that we can potentially loop through and
 # timeout old unused connections at some point
@@ -580,10 +539,6 @@ class ConnectionContext(rpc_common.Connection):
                 try:
                     self.connection.close()
                 except Exception:
-                    # There's apparently a bug in kombu 'memory' transport
-                    # which causes an assert failure.
-                    # But, we probably want to ignore all exceptions when
-                    # trying to close a connection, anyway...
                     pass
             self.connection = None
 
@@ -688,9 +643,8 @@ def _pack_context(msg, context):
 
     Values for message keys need to be less than 255 chars, so we pull
     context out into a bunch of separate keys. If we want to support
-    more arguments in rabbit messages, we may want to do the same
+    more arguments in messages, we may want to do the same
     for args at some point.
-
     """
     context_d = dict([('_context_%s' % key, value)
                       for (key, value) in context.to_dict().iteritems()])
@@ -799,7 +753,6 @@ def msg_reply(msg_id, reply=None, failure=None):
     """Sends a reply or an error on the session signified by msg_id.
 
     Failure should be a sys.exc_info() tuple.
-
     """
     with ConnectionContext() as conn:
         if failure:
