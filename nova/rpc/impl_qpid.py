@@ -73,14 +73,10 @@ class ConsumerBase(object):
         If a callback is specified in kwargs, use that.  Otherwise,
         use the callback passed during __init__()
 
-        If kwargs['nowait'] is True, then this call will block until
-        a message is read.
-
         Messages will automatically be acked if the callback doesn't
         raise an exception
         """
 
-        options = { "nowait": kwargs.get("nowait", False) }
         callback = kwargs.get('callback', self.callback)
         if not callback:
             raise ValueError("No callback defined")
@@ -127,10 +123,7 @@ class DirectConsumer(ConsumerBase):
 
         address = "%s/%s ; %s" % (exchange_name, msg_id, json.dumps(addr_opts))
 
-        super(DirectConsumer, self).__init__(
-                session,
-                callback,
-                address)
+        super(DirectConsumer, self).__init__(session, callback, address)
 
 
 class TopicConsumer(ConsumerBase):
@@ -168,10 +161,7 @@ class TopicConsumer(ConsumerBase):
 
         address = "%s/%s ; %s" % (exchange_name, topic, json.dumps(addr_opts))
 
-        super(TopicConsumer, self).__init__(
-                session,
-                callback,
-                address)
+        super(TopicConsumer, self).__init__(session, callback, address)
 
 
 class FanoutConsumer(ConsumerBase):
@@ -211,10 +201,7 @@ class FanoutConsumer(ConsumerBase):
 
         address = "%s ; %s" % (exchange_name, json.dumps(addr_opts))
 
-        super(FanoutConsumer, self).__init__(
-                session,
-                callback,
-                address)
+        super(FanoutConsumer, self).__init__(session, callback, address)
 
 
 class Publisher(object):
