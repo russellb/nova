@@ -268,7 +268,7 @@ class FanoutPublisher(Publisher):
 
         # auto-delete isn't implemented for exchanges in qpid,
         # but put in here anyway
-        self.address = exchange + ';' \
+        address = exchange + ';' \
                         '{create:always,' \
                             'node:{type:topic, x-declare:' \
                               '{durable:False, type:fanout, auto-delete:True}'\
@@ -396,7 +396,7 @@ class Connection(object):
                 publisher = cls(self.session, topic)
                 publisher.send(msg)
                 return
-            except self.connection.connection_errors, e:
+            except qpid.messaging.exceptions.MessagingError, e:
                 LOG.exception(_('Failed to publish message %s' % str(e)))
                 try:
                     self.reconnect()
