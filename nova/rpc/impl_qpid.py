@@ -137,12 +137,12 @@ class TopicConsumer(ConsumerBase):
 
         address = exchange_name + '/' + topic + ';' \
                     '{create:always,' \
-                        'node:{type: topic, x-declare:' \
-                            '{durable: True, auto-delete: True}' \
-                        '},' \
-                        'link:{name:' + topic + ', durable: True, x-declare:'\
-                            '{durable:False, auto-delete:True}' \
-                        '}' \
+                      'node:{type: topic, x-declare:' \
+                        '{durable: True, auto-delete: True}'\
+                      '},' \
+                      'link:{name:' + topic + ', durable: True, x-declare:'\
+                        '{durable:False, auto-delete:True, exclusive: False}'\
+                      '}' \
                     '}'
 
         super(TopicConsumer, self).__init__(
