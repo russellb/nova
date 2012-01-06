@@ -176,7 +176,7 @@ class FanoutConsumer(ConsumerBase):
                     '}' \
                 '}'
 
-        super(FanoutConsumerConsumer, self).__init__(
+        super(FanoutConsumer, self).__init__(
                 session,
                 callback,
                 address)
