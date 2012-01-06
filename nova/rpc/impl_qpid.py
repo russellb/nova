@@ -16,7 +16,6 @@
 #    under the License.
 
 import inspect
-import itertools
 import sys
 import time
 import traceback
@@ -53,6 +52,7 @@ class ConsumerBase(object):
         'callback' is the callback to call when messages are received
         'address' the qpid address string
         """
+        self.session = session
         self.callback = callback
         self.receiver = None
         self.address = address
@@ -197,6 +197,7 @@ class Publisher(object):
         """Init the Publisher class with the exchange_name, routing_key,
         and other options
         """
+        self.sender = None
         self.session = session
         self.address = address
         self.reconnect(session)
@@ -292,6 +293,7 @@ class Connection(object):
     """Connection object."""
 
     def __init__(self):
+        self.session = None
         self.consumers = {}
         self.consumer_thread = None
 
@@ -332,18 +334,15 @@ class Connection(object):
             self.connection.open()
 
         except qpid.messaging.exceptions.ConnectionError, e:
-            # We should only get here if max_retries is set.  We'll go
+            # We should only get here if reconnect is set.  We'll go
             # ahead and exit in this case.
-            err_str = str(e)
-            max_retries = self.reconnect_limit
-            LOG.error(_('Unable to connect to AMQP server '
-                    'after %(max_retries)d tries: %(err_str)s') % locals())
-            sys.exit(1)
+            LOG.error(_('Unable to connect to AMQP server: %s ' % str(e)))
+
         LOG.info(_('Connected to AMQP server on %s' % self.broker))
 
         self.session = self.connection.session()
 
-        for k, consumer in self.consumers.iteritems():
+        for consumer in self.consumers.itervalues():
             consumer.reconnect(self.session)
 
         if self.consumers:
@@ -394,7 +393,7 @@ class Connection(object):
                     self.reconnect()
                     if publisher:
                         publisher.reconnect(self.session)
-                except self.connection.connection_errors, e:
+                except qpid.messaging.exceptions.ConnectionError:
                     pass
 
     def declare_direct_consumer(self, topic, callback):
@@ -424,7 +423,7 @@ class Connection(object):
         """Send a 'fanout' message"""
         self.publisher_send(FanoutPublisher, topic, msg)
 
-    def consume(self, limit=None):
+    def consume(self):
         """Consume from all queues/consumers"""
         while True:
             try:
@@ -466,14 +465,6 @@ class Pool(pools.Pool):
         return Connection()
 
 
-# Create a ConnectionPool to use for RPC calls.  We'll order the
-# pool as a stack (LIFO), so that we can potentially loop through and
-# timeout old unused connections at some point
-ConnectionPool = Pool(
-        max_size=FLAGS.rpc_conn_pool_size,
-        order_as_stack=True)
-
-
 class ConnectionContext(rpc_common.Connection):
     """The class that is actually returned to the caller of
     create_connection().  This is a essentially a wrapper around
@@ -485,11 +476,17 @@ class ConnectionContext(rpc_common.Connection):
     the pool.
     """
 
+    # Create a connection pool to use for RPC calls.  We'll order the
+    # pool as a stack (LIFO), so that we can potentially loop through and
+    # timeout old unused connections at some point
+    _connection_pool = Pool(max_size=FLAGS.rpc_conn_pool_size,
+                            order_as_stack=True)
+
     def __init__(self, pooled=True):
         """Create a new connection, or get one from the pool"""
         self.connection = None
         if pooled:
-            self.connection = ConnectionPool.get()
+            self.connection = self._connection_pool.get()
         else:
             self.connection = Connection()
         self.pooled = pooled
@@ -507,7 +504,7 @@ class ConnectionContext(rpc_common.Connection):
                 # Reset the connection so it's ready for the next caller
                 # to grab from the pool
                 self.connection.reset()
-                ConnectionPool.put(self.connection)
+                self._connection_pool.put(self.connection)
             else:
                 try:
                     self.connection.close()
@@ -590,7 +587,7 @@ class ProxyCallback(object):
                 ctxt.reply(rval, None)
             # This final None tells multicall that it is done.
             ctxt.reply(None, None)
-        except Exception as e:
+        except Exception:
             LOG.exception('Exception during message handling')
             ctxt.reply(None, sys.exc_info())
         return
