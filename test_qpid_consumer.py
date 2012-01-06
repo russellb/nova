@@ -3,6 +3,7 @@
 import sys
 import time
 import eventlet
+import uuid
 
 from nova import rpc
 from nova import flags
@@ -13,15 +14,17 @@ flags.FLAGS['rpc_backend'].SetDefault('nova.rpc.impl_qpid')
 
 
 class PingConsumer(object):
-    def __init__(self):
-        pass
+    def __init__(self, consumer_type):
+        self.consumer_type = consumer_type
+        self.consumer_uuid = str(uuid.uuid4())
 
     def ping(self, context, **kwargs):
-        print "Got a ping"
+        print "[%s] [%s] Got a ping" % (self.consumer_type, self.consumer_uuid)
         return "pong"
 
     def ping_noreply(self, context, **kwargs):
-        print "Got a ping (no reply)"
+        print "[%s] [%s] Got a ping (no reply)" % (self.consumer_type,
+                                                   self.consumer_uuid)
 
 
 def main(argv=None):
@@ -32,10 +35,12 @@ def main(argv=None):
 
     logging.setup()
 
-    consumer = PingConsumer()
+    consumer = PingConsumer("topic")
+    fanout_consumer = PingConsumer("fanout")
 
     conn = rpc.create_connection(new=True)
     conn.create_consumer("impl_qpid_test", consumer, fanout=False)
+    conn.create_consumer("impl_qpid_test", fanout_consumer, fanout=True)
     conn.consume_in_thread()
 
     while True:
