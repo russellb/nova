@@ -26,6 +26,10 @@ def main(argv=None):
     print "Testing rpc.cast() ..."
     rpc.cast(ctx, "impl_qpid_test", {"method": "ping_noreply", "args":{}})
 
+    print "Testing rpc.fanout_cast() ..."
+    rpc.fanout_cast(ctx, "impl_qpid_test",
+                    {"method": "ping_noreply", "args":{}})
+
     print "Testing rpc.call() ... response: ",
     res = rpc.call(ctx, "impl_qpid_test", {"method": "ping", "args":{}})
     print res
