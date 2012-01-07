@@ -512,7 +512,7 @@ class ConnectionContext(rpc_common.Connection):
                     pass
             self.connection = None
 
-    def __exit__(self, t, v, tb):
+    def __exit__(self, exc_type, exc_value, tb):
         """end of 'with' statement.  We're done here."""
         self._done()
 
