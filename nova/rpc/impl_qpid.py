@@ -423,7 +423,7 @@ class Connection(object):
         """Send a 'fanout' message"""
         self.publisher_send(FanoutPublisher, topic, msg)
 
-    def consume(self):
+    def consume(self, single=False):
         """Consume from all queues/consumers"""
         while True:
             try:
@@ -433,6 +433,8 @@ class Connection(object):
                 LOG.exception(_('Failed to consume message from queue: '
                         '%s' % m))
                 self.reconnect()
+            if single:
+                break
 
     def consume_in_thread(self):
         """Consumer from all queues/consumers in a greenthread"""
@@ -636,14 +638,11 @@ class RpcContext(context.RequestContext):
 class MulticallWaiter(object):
     def __init__(self, connection):
         self._connection = connection
-        self._iterator = connection.iterconsume()
         self._result = None
         self._done = False
 
     def done(self):
         self._done = True
-        self._iterator.close()
-        self._iterator = None
         self._connection.close()
 
     def __call__(self, data):
@@ -658,7 +657,7 @@ class MulticallWaiter(object):
         if self._done:
             raise StopIteration
         while True:
-            self._iterator.next()
+            self._connection.consume(single=True)
             result = self._result
             if isinstance(result, Exception):
                 self.done()
