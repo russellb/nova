@@ -718,7 +718,7 @@ def fanout_cast(context, topic, msg):
         conn.fanout_send(topic, msg)
 
 
-def msg_reply(msg_id, reply=None, failure=None):
+def msg_reply(msg_id, reply=None, failure=None, ending=False):
     """Sends a reply or an error on the session signified by msg_id.
 
     Failure should be a sys.exc_info() tuple.
@@ -737,4 +737,6 @@ def msg_reply(msg_id, reply=None, failure=None):
             msg = {'result': dict((k, repr(v))
                             for k, v in reply.__dict__.iteritems()),
                     'failure': failure}
+        if ending:
+            msg['ending'] = True
         conn.direct_send(msg_id, msg)
