@@ -22,6 +22,13 @@ class PingConsumer(object):
         print "[%s] [%s] Got a ping" % (self.consumer_type, self.consumer_uuid)
         return "pong"
 
+    def ping_multicall(self, context, **kwargs):
+        print "[%s] [%s] Got a ping (multicall)" % (self.consumer_type, self.consumer_uuid)
+        context.reply("pong (1 of 3)")
+        context.reply("pong (2 of 3)")
+        context.reply("pong (3 of 3)")
+        context.reply(ending=True)
+
     def ping_noreply(self, context, **kwargs):
         print "[%s] [%s] Got a ping (no reply)" % (self.consumer_type,
                                                    self.consumer_uuid)

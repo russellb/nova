@@ -34,6 +34,12 @@ def main(argv=None):
     res = rpc.call(ctx, "impl_qpid_test", {"method": "ping", "args":{}})
     print res
 
+    print "Testing rpc.multicall() ... responses: ",
+    res = rpc.multicall(ctx, "impl_qpid_test", {"method": "ping_multicall", "args":{}})
+    for r in res:
+        print r,
+    print
+
     return 0
 
 
