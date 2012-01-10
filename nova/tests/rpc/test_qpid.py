@@ -178,6 +178,60 @@ class RpcQpidTestCase(test.TestCase):
     def test_fanout_cast(self):
         self._test_cast(fanout=True)
 
+    def test_call(self):
+        mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
+        mock_session = self.mocker.CreateMock(qpid.messaging.Session)
+        mock_sender = self.mocker.CreateMock(qpid.messaging.Sender)
+        mock_receiver = self.mocker.CreateMock(qpid.messaging.Receiver)
+
+        mock_connection.opened().AndReturn(False)
+        mock_connection.open()
+        mock_connection.session().AndReturn(mock_session)
+        rcv_addr = mox.Regex(r'^.*/.* ; {"node": {"x-declare": {"auto-delete":'
+                   ' true, "durable": true, "type": "direct"}, "type": '
+                   '"topic"}, "create": "always", "link": {"x-declare": '
+                   '{"auto-delete": true, "durable": false}, "durable": '
+                   'true, "name": ".*"}}')
+        mock_session.receiver(rcv_addr).AndReturn(mock_receiver)
+        mock_receiver.capacity = 1
+        send_addr = 'nova/impl_qpid_test ; {"node": {"x-declare": ' \
+            '{"auto-delete": true, "durable": false}, "type": "topic"}, ' \
+            '"create": "always"}'
+        mock_session.sender(send_addr).AndReturn(mock_sender)
+        mock_sender.send(mox.IgnoreArg())
+
+        mock_session.next_receiver().AndReturn(mock_receiver)
+        mock_receiver.fetch().AndReturn(qpid.messaging.Message(
+                        {"result": "foo", "failure": False, "ending": False}))
+        mock_session.next_receiver().AndReturn(mock_receiver)
+        mock_receiver.fetch().AndReturn(qpid.messaging.Message(
+                        {"failure": False, "ending": True}))
+        mock_session.close()
+        mock_connection.session().AndReturn(mock_session)
+
+        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
+        qpid.messaging.Session = lambda *_x, **_y : mock_session
+        qpid.messaging.Sender = lambda *_x, **_y : mock_sender
+        qpid.messaging.Receiver = lambda *_x, **_y : mock_receiver
+
+        self.mocker.ReplayAll()
+
+        try:
+            ctx = context.RequestContext("user", "project")
+
+            res = impl_qpid.call(ctx, "impl_qpid_test",
+                           {"method": "test_method", "args": {}})
+
+            self.mocker.VerifyAll()
+        finally:
+            if impl_qpid.ConnectionContext._connection_pool.free():
+                # Pull the mock connection object out of the connection pool so
+                # that it doesn't mess up other test cases.
+                impl_qpid.ConnectionContext._connection_pool.get()
+            self._restore_orig()
+
+
+
 #
 # Qpid does not have a handy in-memory transport like kombu, so it's not
 # terribly straight forward to take advantage of the common unit tests.
