@@ -36,11 +36,21 @@ LOG = logging.getLogger('nova.tests.rpc')
 class RpcQpidTestCase(test.TestCase):
     def setUp(self):
         self.mocker = mox.Mox()
+        self._orig_connection = qpid.messaging.Connection
+        self._orig_session = qpid.messaging.Session
+        self._orig_sender = qpid.messaging.Sender
+        self._orig_receiver = qpid.messaging.Receiver
         super(RpcQpidTestCase, self).setUp()
 
     def tearDown(self):
         self.mocker.ResetAll()
         super(RpcQpidTestCase, self).tearDown()
+
+    def _restore_orig(self):
+        qpid.messaging.Connection = self._orig_connection
+        qpid.messaging.Session = self._orig_session
+        qpid.messaging.Sender = self._orig_sender
+        qpid.messaging.Receiver = self._orig_receiver
 
     def test_create_connection(self):
         mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
@@ -57,9 +67,7 @@ class RpcQpidTestCase(test.TestCase):
         def _fake_session(*args, **kwargs):
             return mock_session
 
-        orig_connection = qpid.messaging.Connection
         qpid.messaging.Connection = _fake_connection
-        orig_session = qpid.messaging.Session
         qpid.messaging.Session = _fake_session
 
         self.mocker.ReplayAll()
@@ -68,9 +76,7 @@ class RpcQpidTestCase(test.TestCase):
         connection.close()
 
         self.mocker.VerifyAll()
-
-        qpid.messaging.Connection = orig_connection
-        qpid.messaging.Session = orig_session
+        self._restore_orig()
 
     def _test_create_consumer(self, fanout):
         mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
@@ -98,44 +104,61 @@ class RpcQpidTestCase(test.TestCase):
         mock_receiver.capacity = 1
         mock_connection.close()
 
-        def _fake_connection(*args, **kwargs):
-            return mock_connection
-
-        def _fake_session(*args, **kwargs):
-            return mock_session
-
-        def _fake_receiver(*args, **kwargs):
-            return mock_receiver
-
-        orig_connection = qpid.messaging.Connection
-        qpid.messaging.Connection = _fake_connection
-        orig_session = qpid.messaging.Session
-        qpid.messaging.Session = _fake_session
-        orig_receiver = qpid.messaging.Receiver
-        qpid.messaging.Session = _fake_session
+        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
+        qpid.messaging.Session = lambda *_x, **_y : mock_session
+        qpid.messaging.Receiver = lambda *_x, **_y : mock_receiver
 
         self.mocker.ReplayAll()
 
-        def _proxy(*args, **kwargs):
-            pass
+        try:
+            connection = impl_qpid.create_connection()
+            consumer = connection.create_consumer("impl_qpid_test",
+                                                  lambda *_x, **_y: None,
+                                                  fanout)
+            connection.close()
 
-        connection = impl_qpid.create_connection()
-        consumer = connection.create_consumer("impl_qpid_test",
-                                              lambda *_x, **_y: None,
-                                              fanout=fanout)
-        connection.close()
-
-        self.mocker.VerifyAll()
-
-        qpid.messaging.Connection = orig_connection
-        qpid.messaging.Session = orig_session
-        qpid.messaging.Receiver = orig_receiver
+            self.mocker.VerifyAll()
+        finally:
+            self._restore_orig()
 
     def test_create_consumer(self):
         self._test_create_consumer(fanout=False)
 
     def test_create_consumer_fanout(self):
         self._test_create_consumer(fanout=True)
+
+    def test_cast(self):
+        mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
+        mock_session = self.mocker.CreateMock(qpid.messaging.Session)
+        mock_sender = self.mocker.CreateMock(qpid.messaging.Sender)
+
+        mock_connection.opened().AndReturn(False)
+        mock_connection.open()
+        mock_connection.session().AndReturn(mock_session)
+        expected_address = 'nova/impl_qpid_test ; {"node": {"x-declare": ' \
+            '{"auto-delete": true, "durable": false}, "type": "topic"}, ' \
+            '"create": "always"}'
+        mock_session.sender(expected_address).AndReturn(mock_sender)
+        mock_sender.send(mox.IgnoreArg())
+        # This is a pooled connection, so instead of closing it, it gets reset,
+        # which is just creating a new session on the connection.
+        mock_session.close()
+        mock_connection.session().AndReturn(mock_session)
+
+        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
+        qpid.messaging.Session = lambda *_x, **_y : mock_session
+        qpid.messaging.Sender = lambda *_x, **_y : mock_sender
+
+        self.mocker.ReplayAll()
+
+        try:
+            ctx = context.RequestContext("user", "project")
+            impl_qpid.cast(ctx, "impl_qpid_test",
+                           {"method": "ping_noreply", "args": {}})
+
+            self.mocker.VerifyAll()
+        finally:
+            self._restore_orig()
 
 #
 # Qpid does not have a handy in-memory transport like kombu, so it's not
