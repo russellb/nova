@@ -62,8 +62,8 @@ class RpcQpidTestCase(test.TestCase):
         mock_connection.session().AndReturn(mock_session)
         mock_connection.close()
 
-        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
-        qpid.messaging.Session = lambda *_x, **_y : mock_session
+        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
+        qpid.messaging.Session = lambda *_x, **_y: mock_session
 
         self.mocker.ReplayAll()
 
@@ -101,9 +101,9 @@ class RpcQpidTestCase(test.TestCase):
         mock_receiver.capacity = 1
         mock_connection.close()
 
-        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
-        qpid.messaging.Session = lambda *_x, **_y : mock_session
-        qpid.messaging.Receiver = lambda *_x, **_y : mock_receiver
+        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
+        qpid.messaging.Session = lambda *_x, **_y: mock_session
+        qpid.messaging.Receiver = lambda *_x, **_y: mock_receiver
 
         self.mocker.ReplayAll()
 
@@ -148,9 +148,9 @@ class RpcQpidTestCase(test.TestCase):
         mock_session.close()
         mock_connection.session().AndReturn(mock_session)
 
-        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
-        qpid.messaging.Session = lambda *_x, **_y : mock_session
-        qpid.messaging.Sender = lambda *_x, **_y : mock_sender
+        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
+        qpid.messaging.Session = lambda *_x, **_y: mock_session
+        qpid.messaging.Sender = lambda *_x, **_y: mock_sender
 
         self.mocker.ReplayAll()
 
@@ -220,10 +220,10 @@ class RpcQpidTestCase(test.TestCase):
         mock_session.close()
         mock_connection.session().AndReturn(mock_session)
 
-        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
-        qpid.messaging.Session = lambda *_x, **_y : mock_session
-        qpid.messaging.Sender = lambda *_x, **_y : mock_sender
-        qpid.messaging.Receiver = lambda *_x, **_y : mock_receiver
+        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
+        qpid.messaging.Session = lambda *_x, **_y: mock_session
+        qpid.messaging.Sender = lambda *_x, **_y: mock_sender
+        qpid.messaging.Receiver = lambda *_x, **_y: mock_receiver
 
         self.mocker.ReplayAll()
 
