@@ -178,7 +178,7 @@ class RpcQpidTestCase(test.TestCase):
     def test_fanout_cast(self):
         self._test_cast(fanout=True)
 
-    def test_call(self):
+    def _test_call(self, multi):
         mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
         mock_session = self.mocker.CreateMock(qpid.messaging.Session)
         mock_sender = self.mocker.CreateMock(qpid.messaging.Sender)
@@ -203,6 +203,17 @@ class RpcQpidTestCase(test.TestCase):
         mock_session.next_receiver().AndReturn(mock_receiver)
         mock_receiver.fetch().AndReturn(qpid.messaging.Message(
                         {"result": "foo", "failure": False, "ending": False}))
+        if multi:
+            mock_session.next_receiver().AndReturn(mock_receiver)
+            mock_receiver.fetch().AndReturn(
+                            qpid.messaging.Message(
+                                {"result": "bar", "failure": False,
+                                 "ending": False}))
+            mock_session.next_receiver().AndReturn(mock_receiver)
+            mock_receiver.fetch().AndReturn(
+                            qpid.messaging.Message(
+                                {"result": "baz", "failure": False,
+                                 "ending": False}))
         mock_session.next_receiver().AndReturn(mock_receiver)
         mock_receiver.fetch().AndReturn(qpid.messaging.Message(
                         {"failure": False, "ending": True}))
@@ -219,8 +230,18 @@ class RpcQpidTestCase(test.TestCase):
         try:
             ctx = context.RequestContext("user", "project")
 
-            res = impl_qpid.call(ctx, "impl_qpid_test",
+            if multi:
+                method = impl_qpid.multicall
+            else:
+                method = impl_qpid.call
+
+            res = method(ctx, "impl_qpid_test",
                            {"method": "test_method", "args": {}})
+
+            if multi:
+                self.assertEquals(list(res), ["foo", "bar", "baz"])
+            else:
+                self.assertEquals(res, "foo")
 
             self.mocker.VerifyAll()
         finally:
@@ -230,6 +251,11 @@ class RpcQpidTestCase(test.TestCase):
                 impl_qpid.ConnectionContext._connection_pool.get()
             self._restore_orig()
 
+    def test_call(self):
+        self._test_call(multi=False)
+
+    def test_multicall(self):
+        self._test_call(multi=True)
 
 
 #
