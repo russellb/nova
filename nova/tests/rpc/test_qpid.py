@@ -43,7 +43,7 @@ class RpcQpidTestCase(test.TestCase):
         super(RpcQpidTestCase, self).setUp()
 
     def tearDown(self):
-        self.mocker.ResetAll()
+        self._restore_orig()
         super(RpcQpidTestCase, self).tearDown()
 
     def _restore_orig(self):
@@ -51,6 +51,7 @@ class RpcQpidTestCase(test.TestCase):
         qpid.messaging.Session = self._orig_session
         qpid.messaging.Sender = self._orig_sender
         qpid.messaging.Receiver = self._orig_receiver
+        self.mocker.ResetAll()
 
     def test_create_connection(self):
         mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
@@ -123,7 +124,7 @@ class RpcQpidTestCase(test.TestCase):
     def test_create_consumer_fanout(self):
         self._test_create_consumer(fanout=True)
 
-    def test_cast(self):
+    def _test_cast(self, fanout):
         mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
         mock_session = self.mocker.CreateMock(qpid.messaging.Session)
         mock_sender = self.mocker.CreateMock(qpid.messaging.Sender)
@@ -131,9 +132,15 @@ class RpcQpidTestCase(test.TestCase):
         mock_connection.opened().AndReturn(False)
         mock_connection.open()
         mock_connection.session().AndReturn(mock_session)
-        expected_address = 'nova/impl_qpid_test ; {"node": {"x-declare": ' \
-            '{"auto-delete": true, "durable": false}, "type": "topic"}, ' \
-            '"create": "always"}'
+        if fanout:
+            expected_address = 'impl_qpid_test_fanout ; ' \
+                '{"node": {"x-declare": {"auto-delete": true, ' \
+                '"durable": false, "type": "fanout"}, ' \
+                '"type": "topic"}, "create": "always"}'
+        else:
+            expected_address = 'nova/impl_qpid_test ; {"node": {"x-declare": '\
+                '{"auto-delete": true, "durable": false}, "type": "topic"}, ' \
+                '"create": "always"}'
         mock_session.sender(expected_address).AndReturn(mock_sender)
         mock_sender.send(mox.IgnoreArg())
         # This is a pooled connection, so instead of closing it, it gets reset,
@@ -149,12 +156,27 @@ class RpcQpidTestCase(test.TestCase):
 
         try:
             ctx = context.RequestContext("user", "project")
-            impl_qpid.cast(ctx, "impl_qpid_test",
-                           {"method": "ping_noreply", "args": {}})
+
+            if fanout:
+                impl_qpid.fanout_cast(ctx, "impl_qpid_test",
+                               {"method": "test_method", "args": {}})
+            else:
+                impl_qpid.cast(ctx, "impl_qpid_test",
+                               {"method": "test_method", "args": {}})
 
             self.mocker.VerifyAll()
         finally:
+            if impl_qpid.ConnectionContext._connection_pool.free():
+                # Pull the mock connection object out of the connection pool so
+                # that it doesn't mess up other test cases.
+                impl_qpid.ConnectionContext._connection_pool.get()
             self._restore_orig()
+
+    def test_cast(self):
+        self._test_cast(fanout=False)
+
+    def test_fanout_cast(self):
+        self._test_cast(fanout=True)
 
 #
 # Qpid does not have a handy in-memory transport like kombu, so it's not
