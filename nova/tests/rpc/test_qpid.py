@@ -61,22 +61,18 @@ class RpcQpidTestCase(test.TestCase):
         mock_connection.session().AndReturn(mock_session)
         mock_connection.close()
 
-        def _fake_connection(*args, **kwargs):
-            return mock_connection
-
-        def _fake_session(*args, **kwargs):
-            return mock_session
-
-        qpid.messaging.Connection = _fake_connection
-        qpid.messaging.Session = _fake_session
+        qpid.messaging.Connection = lambda *_x, **_y : mock_connection
+        qpid.messaging.Session = lambda *_x, **_y : mock_session
 
         self.mocker.ReplayAll()
 
-        connection = impl_qpid.create_connection()
-        connection.close()
+        try:
+            connection = impl_qpid.create_connection()
+            connection.close()
 
-        self.mocker.VerifyAll()
-        self._restore_orig()
+            self.mocker.VerifyAll()
+        finally:
+            self._restore_orig()
 
     def _test_create_consumer(self, fanout):
         mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
