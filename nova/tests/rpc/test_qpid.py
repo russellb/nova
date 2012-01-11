@@ -34,6 +34,21 @@ LOG = logging.getLogger('nova.tests.rpc')
 
 
 class RpcQpidTestCase(test.TestCase):
+    """
+    Exercise the public API of impl_qpid utilizing mox.
+
+    This set of tests utilizes mox to replace the Qpid objects and ensures
+    that the right operations happen on them when the various public rpc API
+    calls are exercised.  The API calls tested here include:
+
+        nova.rpc.create_connection()
+        nova.rpc.common.Connection.create_consumer()
+        nova.rpc.common.Connection.close()
+        nova.rpc.cast()
+        nova.rpc.fanout_cast()
+        nova.rpc.call()
+        nova.rpc.multicall()
+    """
     def setUp(self):
         self.mocker = mox.Mox()
 
