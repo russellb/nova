@@ -36,53 +36,58 @@ LOG = logging.getLogger('nova.tests.rpc')
 class RpcQpidTestCase(test.TestCase):
     def setUp(self):
         self.mocker = mox.Mox()
-        self._orig_connection = qpid.messaging.Connection
-        self._orig_session = qpid.messaging.Session
-        self._orig_sender = qpid.messaging.Sender
-        self._orig_receiver = qpid.messaging.Receiver
+
+        self.orig_connection = qpid.messaging.Connection
+        self.orig_session = qpid.messaging.Session
+        self.orig_sender = qpid.messaging.Sender
+        self.orig_receiver = qpid.messaging.Receiver
+
+        self.mock_connection = None
+        self.mock_session = None
+        self.mock_sender = None
+        self.mock_receiver = None
+
+        qpid.messaging.Connection = lambda *_x, **_y: self.mock_connection
+        qpid.messaging.Session = lambda *_x, **_y: self.mock_session
+        qpid.messaging.Sender = lambda *_x, **_y: self.mock_sender
+        qpid.messaging.Receiver = lambda *_x, **_y: self.mock_receiver
+
         super(RpcQpidTestCase, self).setUp()
 
     def tearDown(self):
-        self._restore_orig()
-        super(RpcQpidTestCase, self).tearDown()
+        qpid.messaging.Connection = self.orig_connection
+        qpid.messaging.Session = self.orig_session
+        qpid.messaging.Sender = self.orig_sender
+        qpid.messaging.Receiver = self.orig_receiver
 
-    def _restore_orig(self):
-        qpid.messaging.Connection = self._orig_connection
-        qpid.messaging.Session = self._orig_session
-        qpid.messaging.Sender = self._orig_sender
-        qpid.messaging.Receiver = self._orig_receiver
         self.mocker.ResetAll()
 
+        super(RpcQpidTestCase, self).tearDown()
+
     def test_create_connection(self):
-        mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
-        mock_session = self.mocker.CreateMock(qpid.messaging.Session)
+        self.mock_connection = self.mocker.CreateMock(self.orig_connection)
+        self.mock_session = self.mocker.CreateMock(self.orig_session)
 
-        mock_connection.opened().AndReturn(False)
-        mock_connection.open()
-        mock_connection.session().AndReturn(mock_session)
-        mock_connection.close()
-
-        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
-        qpid.messaging.Session = lambda *_x, **_y: mock_session
+        self.mock_connection.opened().AndReturn(False)
+        self.mock_connection.open()
+        self.mock_connection.session().AndReturn(self.mock_session)
+        self.mock_connection.close()
 
         self.mocker.ReplayAll()
 
-        try:
-            connection = impl_qpid.create_connection()
-            connection.close()
+        connection = impl_qpid.create_connection()
+        connection.close()
 
-            self.mocker.VerifyAll()
-        finally:
-            self._restore_orig()
+        self.mocker.VerifyAll()
 
     def _test_create_consumer(self, fanout):
-        mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
-        mock_session = self.mocker.CreateMock(qpid.messaging.Session)
-        mock_receiver = self.mocker.CreateMock(qpid.messaging.Receiver)
+        self.mock_connection = self.mocker.CreateMock(self.orig_connection)
+        self.mock_session = self.mocker.CreateMock(self.orig_session)
+        self.mock_receiver = self.mocker.CreateMock(self.orig_receiver)
 
-        mock_connection.opened().AndReturn(False)
-        mock_connection.open()
-        mock_connection.session().AndReturn(mock_session)
+        self.mock_connection.opened().AndReturn(False)
+        self.mock_connection.open()
+        self.mock_connection.session().AndReturn(self.mock_session)
         if fanout:
             # The link name includes a UUID, so match it with a regex.
             expected_address = mox.Regex(r'^impl_qpid_test_fanout ; '
@@ -97,26 +102,20 @@ class RpcQpidTestCase(test.TestCase):
                 '"create": "always", "link": {"x-declare": {"auto-delete": ' \
                 'true, "exclusive": false, "durable": false}, "durable": ' \
                 'true, "name": "impl_qpid_test"}}'
-        mock_session.receiver(expected_address).AndReturn(mock_receiver)
-        mock_receiver.capacity = 1
-        mock_connection.close()
-
-        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
-        qpid.messaging.Session = lambda *_x, **_y: mock_session
-        qpid.messaging.Receiver = lambda *_x, **_y: mock_receiver
+        self.mock_session.receiver(expected_address).AndReturn(
+                                                        self.mock_receiver)
+        self.mock_receiver.capacity = 1
+        self.mock_connection.close()
 
         self.mocker.ReplayAll()
 
-        try:
-            connection = impl_qpid.create_connection()
-            consumer = connection.create_consumer("impl_qpid_test",
-                                                  lambda *_x, **_y: None,
-                                                  fanout)
-            connection.close()
+        connection = impl_qpid.create_connection()
+        consumer = connection.create_consumer("impl_qpid_test",
+                                             lambda *_x, **_y: None,
+                                             fanout)
+        connection.close()
 
-            self.mocker.VerifyAll()
-        finally:
-            self._restore_orig()
+        self.mocker.VerifyAll()
 
     def test_create_consumer(self):
         self._test_create_consumer(fanout=False)
@@ -125,13 +124,13 @@ class RpcQpidTestCase(test.TestCase):
         self._test_create_consumer(fanout=True)
 
     def _test_cast(self, fanout):
-        mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
-        mock_session = self.mocker.CreateMock(qpid.messaging.Session)
-        mock_sender = self.mocker.CreateMock(qpid.messaging.Sender)
+        self.mock_connection = self.mocker.CreateMock(self.orig_connection)
+        self.mock_session = self.mocker.CreateMock(self.orig_session)
+        self.mock_sender = self.mocker.CreateMock(self.orig_sender)
 
-        mock_connection.opened().AndReturn(False)
-        mock_connection.open()
-        mock_connection.session().AndReturn(mock_session)
+        self.mock_connection.opened().AndReturn(False)
+        self.mock_connection.open()
+        self.mock_connection.session().AndReturn(self.mock_session)
         if fanout:
             expected_address = 'impl_qpid_test_fanout ; ' \
                 '{"node": {"x-declare": {"auto-delete": true, ' \
@@ -141,16 +140,12 @@ class RpcQpidTestCase(test.TestCase):
             expected_address = 'nova/impl_qpid_test ; {"node": {"x-declare": '\
                 '{"auto-delete": true, "durable": false}, "type": "topic"}, ' \
                 '"create": "always"}'
-        mock_session.sender(expected_address).AndReturn(mock_sender)
-        mock_sender.send(mox.IgnoreArg())
+        self.mock_session.sender(expected_address).AndReturn(self.mock_sender)
+        self.mock_sender.send(mox.IgnoreArg())
         # This is a pooled connection, so instead of closing it, it gets reset,
         # which is just creating a new session on the connection.
-        mock_session.close()
-        mock_connection.session().AndReturn(mock_session)
-
-        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
-        qpid.messaging.Session = lambda *_x, **_y: mock_session
-        qpid.messaging.Sender = lambda *_x, **_y: mock_sender
+        self.mock_session.close()
+        self.mock_connection.session().AndReturn(self.mock_session)
 
         self.mocker.ReplayAll()
 
@@ -170,7 +165,6 @@ class RpcQpidTestCase(test.TestCase):
                 # Pull the mock connection object out of the connection pool so
                 # that it doesn't mess up other test cases.
                 impl_qpid.ConnectionContext._connection_pool.get()
-            self._restore_orig()
 
     def test_cast(self):
         self._test_cast(fanout=False)
@@ -179,51 +173,46 @@ class RpcQpidTestCase(test.TestCase):
         self._test_cast(fanout=True)
 
     def _test_call(self, multi):
-        mock_connection = self.mocker.CreateMock(qpid.messaging.Connection)
-        mock_session = self.mocker.CreateMock(qpid.messaging.Session)
-        mock_sender = self.mocker.CreateMock(qpid.messaging.Sender)
-        mock_receiver = self.mocker.CreateMock(qpid.messaging.Receiver)
+        self.mock_connection = self.mocker.CreateMock(self.orig_connection)
+        self.mock_session = self.mocker.CreateMock(self.orig_session)
+        self.mock_sender = self.mocker.CreateMock(self.orig_sender)
+        self.mock_receiver = self.mocker.CreateMock(self.orig_receiver)
 
-        mock_connection.opened().AndReturn(False)
-        mock_connection.open()
-        mock_connection.session().AndReturn(mock_session)
+        self.mock_connection.opened().AndReturn(False)
+        self.mock_connection.open()
+        self.mock_connection.session().AndReturn(self.mock_session)
         rcv_addr = mox.Regex(r'^.*/.* ; {"node": {"x-declare": {"auto-delete":'
                    ' true, "durable": true, "type": "direct"}, "type": '
                    '"topic"}, "create": "always", "link": {"x-declare": '
                    '{"auto-delete": true, "durable": false}, "durable": '
                    'true, "name": ".*"}}')
-        mock_session.receiver(rcv_addr).AndReturn(mock_receiver)
-        mock_receiver.capacity = 1
+        self.mock_session.receiver(rcv_addr).AndReturn(self.mock_receiver)
+        self.mock_receiver.capacity = 1
         send_addr = 'nova/impl_qpid_test ; {"node": {"x-declare": ' \
             '{"auto-delete": true, "durable": false}, "type": "topic"}, ' \
             '"create": "always"}'
-        mock_session.sender(send_addr).AndReturn(mock_sender)
-        mock_sender.send(mox.IgnoreArg())
+        self.mock_session.sender(send_addr).AndReturn(self.mock_sender)
+        self.mock_sender.send(mox.IgnoreArg())
 
-        mock_session.next_receiver().AndReturn(mock_receiver)
-        mock_receiver.fetch().AndReturn(qpid.messaging.Message(
+        self.mock_session.next_receiver().AndReturn(self.mock_receiver)
+        self.mock_receiver.fetch().AndReturn(qpid.messaging.Message(
                         {"result": "foo", "failure": False, "ending": False}))
         if multi:
-            mock_session.next_receiver().AndReturn(mock_receiver)
-            mock_receiver.fetch().AndReturn(
+            self.mock_session.next_receiver().AndReturn(self.mock_receiver)
+            self.mock_receiver.fetch().AndReturn(
                             qpid.messaging.Message(
                                 {"result": "bar", "failure": False,
                                  "ending": False}))
-            mock_session.next_receiver().AndReturn(mock_receiver)
-            mock_receiver.fetch().AndReturn(
+            self.mock_session.next_receiver().AndReturn(self.mock_receiver)
+            self.mock_receiver.fetch().AndReturn(
                             qpid.messaging.Message(
                                 {"result": "baz", "failure": False,
                                  "ending": False}))
-        mock_session.next_receiver().AndReturn(mock_receiver)
-        mock_receiver.fetch().AndReturn(qpid.messaging.Message(
+        self.mock_session.next_receiver().AndReturn(self.mock_receiver)
+        self.mock_receiver.fetch().AndReturn(qpid.messaging.Message(
                         {"failure": False, "ending": True}))
-        mock_session.close()
-        mock_connection.session().AndReturn(mock_session)
-
-        qpid.messaging.Connection = lambda *_x, **_y: mock_connection
-        qpid.messaging.Session = lambda *_x, **_y: mock_session
-        qpid.messaging.Sender = lambda *_x, **_y: mock_sender
-        qpid.messaging.Receiver = lambda *_x, **_y: mock_receiver
+        self.mock_session.close()
+        self.mock_connection.session().AndReturn(self.mock_session)
 
         self.mocker.ReplayAll()
 
@@ -249,7 +238,6 @@ class RpcQpidTestCase(test.TestCase):
                 # Pull the mock connection object out of the connection pool so
                 # that it doesn't mess up other test cases.
                 impl_qpid.ConnectionContext._connection_pool.get()
-            self._restore_orig()
 
     def test_call(self):
         self._test_call(multi=False)
