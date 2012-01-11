@@ -21,13 +21,18 @@ Unit Tests for remote procedure calls using qpid
 """
 
 import mox
-import qpid
 
 from nova import context
 from nova import log as logging
 from nova import test
-from nova.rpc import impl_qpid
 from nova.tests.rpc import common
+
+try:
+    import qpid
+    from nova.rpc import impl_qpid
+except ImportError:
+    qpid = None
+    impl_qpid = None
 
 
 LOG = logging.getLogger('nova.tests.rpc')
@@ -52,33 +57,35 @@ class RpcQpidTestCase(test.TestCase):
     def setUp(self):
         self.mocker = mox.Mox()
 
-        self.orig_connection = qpid.messaging.Connection
-        self.orig_session = qpid.messaging.Session
-        self.orig_sender = qpid.messaging.Sender
-        self.orig_receiver = qpid.messaging.Receiver
-
         self.mock_connection = None
         self.mock_session = None
         self.mock_sender = None
         self.mock_receiver = None
 
-        qpid.messaging.Connection = lambda *_x, **_y: self.mock_connection
-        qpid.messaging.Session = lambda *_x, **_y: self.mock_session
-        qpid.messaging.Sender = lambda *_x, **_y: self.mock_sender
-        qpid.messaging.Receiver = lambda *_x, **_y: self.mock_receiver
+        if qpid:
+            self.orig_connection = qpid.messaging.Connection
+            self.orig_session = qpid.messaging.Session
+            self.orig_sender = qpid.messaging.Sender
+            self.orig_receiver = qpid.messaging.Receiver
+            qpid.messaging.Connection = lambda *_x, **_y: self.mock_connection
+            qpid.messaging.Session = lambda *_x, **_y: self.mock_session
+            qpid.messaging.Sender = lambda *_x, **_y: self.mock_sender
+            qpid.messaging.Receiver = lambda *_x, **_y: self.mock_receiver
 
         super(RpcQpidTestCase, self).setUp()
 
     def tearDown(self):
-        qpid.messaging.Connection = self.orig_connection
-        qpid.messaging.Session = self.orig_session
-        qpid.messaging.Sender = self.orig_sender
-        qpid.messaging.Receiver = self.orig_receiver
+        if qpid:
+            qpid.messaging.Connection = self.orig_connection
+            qpid.messaging.Session = self.orig_session
+            qpid.messaging.Sender = self.orig_sender
+            qpid.messaging.Receiver = self.orig_receiver
 
         self.mocker.ResetAll()
 
         super(RpcQpidTestCase, self).tearDown()
 
+    @test.skip_if(qpid is None, "Test requires qpid")
     def test_create_connection(self):
         self.mock_connection = self.mocker.CreateMock(self.orig_connection)
         self.mock_session = self.mocker.CreateMock(self.orig_session)
@@ -132,9 +139,11 @@ class RpcQpidTestCase(test.TestCase):
 
         self.mocker.VerifyAll()
 
+    @test.skip_if(qpid is None, "Test requires qpid")
     def test_create_consumer(self):
         self._test_create_consumer(fanout=False)
 
+    @test.skip_if(qpid is None, "Test requires qpid")
     def test_create_consumer_fanout(self):
         self._test_create_consumer(fanout=True)
 
@@ -181,9 +190,11 @@ class RpcQpidTestCase(test.TestCase):
                 # that it doesn't mess up other test cases.
                 impl_qpid.ConnectionContext._connection_pool.get()
 
+    @test.skip_if(qpid is None, "Test requires qpid")
     def test_cast(self):
         self._test_cast(fanout=False)
 
+    @test.skip_if(qpid is None, "Test requires qpid")
     def test_fanout_cast(self):
         self._test_cast(fanout=True)
 
@@ -254,9 +265,11 @@ class RpcQpidTestCase(test.TestCase):
                 # that it doesn't mess up other test cases.
                 impl_qpid.ConnectionContext._connection_pool.get()
 
+    @test.skip_if(qpid is None, "Test requires qpid")
     def test_call(self):
         self._test_call(multi=False)
 
+    @test.skip_if(qpid is None, "Test requires qpid")
     def test_multicall(self):
         self._test_call(multi=True)
 
