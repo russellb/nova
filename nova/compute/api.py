@@ -985,7 +985,8 @@ class API(base.Base):
         inst['name'] = instance['name']
         return inst
 
-    def get_all(self, context, search_opts=None):
+    def get_all(self, context, search_opts=None, sort_key='created_at',
+                sort_dir='desc'):
         """Get all instances filtered by one of the given parameters.
 
         If there is no filter and the context is an admin, it will retrieve
@@ -993,6 +994,10 @@ class API(base.Base):
 
         Deleted instances will be returned by default, unless there is a
         search option that says otherwise.
+
+        The results will be returned sorted in the order specified by the
+        'sort_dir' parameter using the key specified in the 'sort_key'
+        parameter.
         """
 
         #TODO(bcwaldon): determine the best argument for target here
@@ -1058,7 +1063,8 @@ class API(base.Base):
                     except ValueError:
                         return []
 
-        inst_models = self._get_instances_by_filters(context, filters)
+        inst_models = self._get_instances_by_filters(context, filters,
+                                                     sort_key, sort_dir)
 
         # Convert the models to dictionaries
         instances = []
@@ -1070,7 +1076,7 @@ class API(base.Base):
 
         return instances
 
-    def _get_instances_by_filters(self, context, filters):
+    def _get_instances_by_filters(self, context, filters, sort_key, sort_dir):
         if 'ip6' in filters or 'ip' in filters:
             res = self.network_api.get_instance_uuids_by_ip_filter(context,
                                                                    filters)
@@ -1079,7 +1085,8 @@ class API(base.Base):
             uuids = set([r['instance_uuid'] for r in res])
             filters['uuid'] = uuids
 
-        return self.db.instance_get_all_by_filters(context, filters)
+        return self.db.instance_get_all_by_filters(context, filters, sort_key,
+                                                   sort_dir)
 
     @wrap_check_policy
     @check_instance_state(vm_state=[vm_states.ACTIVE, vm_states.SHUTOFF])
