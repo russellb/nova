@@ -161,6 +161,10 @@ class ComputeRpcAPITestCase(test.TestCase):
         self._test_compute_api('power_on_instance', 'cast',
                 instance=self.fake_instance)
 
+    def test_pre_live_migration(self):
+        self._test_compute_api('pre_live_migration', 'call', instance_id='id',
+                block_migration='block_migration', disk='disk', host='host')
+
     def test_reboot_instance(self):
         self._test_compute_api('reboot_instance', 'cast',
                 instance=self.fake_instance, reboot_type='type')
