@@ -207,6 +207,10 @@ class ComputeRpcAPITestCase(test.TestCase):
         self._test_compute_api('revert_resize', 'cast',
                 instance=self.fake_instance, migration_id='id', host='host')
 
+    def test_rollback_live_migration_at_destination(self):
+        self._test_compute_api('rollback_live_migration_at_destination',
+                'cast', instance_id='id', host='host')
+
     def test_set_admin_password(self):
         self._test_compute_api('set_admin_password', 'cast',
                 instance=self.fake_instance, new_pass='pw')
