@@ -24,6 +24,7 @@ import functools
 
 from eventlet import greenthread
 
+from nova.compute import rpcapi as compute_rpcapi
 from nova.db import base
 from nova import exception
 from nova import flags
@@ -235,13 +236,10 @@ class API(base.Base):
             msg = _("already detached")
             raise exception.InvalidVolume(reason=msg)
 
-    def remove_from_compute(self, context, volume, instance_id, host):
+    def remove_from_compute(self, context, volume, instance, host):
         """Remove volume from specified compute host."""
-        rpc.call(context,
-                 rpc.queue_get_for(context, FLAGS.compute_topic, host),
-                 {"method": "remove_volume_connection",
-                  "args": {'instance_id': instance_id,
-                           'volume_id': volume['id']}})
+        rpcapi = compute_rpcapi.ComputeAPI()
+        rpcapi.remove_volume_connection(context, instance, volume['id'], host)
 
     @wrap_check_policy
     def reserve_volume(self, context, volume):

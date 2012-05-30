@@ -2195,7 +2195,7 @@ class ComputeManager(manager.SchedulerDependentManager):
             self.volume_api.update(context, volume, {'status': 'in-use'})
             self.volume_api.remove_from_compute(context,
                                                 volume,
-                                                instance_ref['id'],
+                                                instance_ref,
                                                 dest)
 
         # Block migration needs empty image at destination host
