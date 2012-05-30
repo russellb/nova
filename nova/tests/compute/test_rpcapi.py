@@ -149,6 +149,11 @@ class ComputeRpcAPITestCase(test.TestCase):
         self._test_compute_api('lock_instance', 'cast',
                 instance=self.fake_instance)
 
+    def test_post_live_migration_at_destination(self):
+        self._test_compute_api('post_live_migration_at_destination', 'call',
+                instance_id='id', block_migration='block_migration',
+                host='host')
+
     def test_pause_instance(self):
         self._test_compute_api('pause_instance', 'cast',
                 instance=self.fake_instance)
