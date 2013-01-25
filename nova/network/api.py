@@ -51,7 +51,7 @@ def refresh_cache(f):
             raise Exception(msg)
 
         update_instance_cache_with_nw_info(self, context, instance,
-                                           nw_info=res)
+                nw_info=res, conductor_api=kwargs.get('conductor_api'))
 
         # return the original function's return value
         return res
@@ -59,8 +59,7 @@ def refresh_cache(f):
 
 
 def update_instance_cache_with_nw_info(api, context, instance,
-                                        nw_info=None):
-
+                                       nw_info=None, conductor_api=None):
     try:
         if not isinstance(nw_info, network_model.NetworkInfo):
             nw_info = None
@@ -68,7 +67,8 @@ def update_instance_cache_with_nw_info(api, context, instance,
             nw_info = api._get_instance_nw_info(context, instance)
         # update cache
         cache = {'network_info': nw_info.json()}
-        api.db.instance_info_cache_update(context, instance['uuid'], cache)
+        update_api = conductor_api if conductor_api else api.db
+        update_api.instance_info_cache_update(context, instance['uuid'], cache)
     except Exception:
         LOG.exception(_('Failed storing info cache'), instance=instance)
 
@@ -184,7 +184,8 @@ class API(base.Base):
 
     @refresh_cache
     def allocate_for_instance(self, context, instance, vpn,
-                              requested_networks, macs=None):
+                              requested_networks, macs=None,
+                              conductor_api=None):
         """Allocates all network structures for an instance.
 
         TODO(someone): document the rest of these parameters.
@@ -217,7 +218,8 @@ class API(base.Base):
         self.network_rpcapi.deallocate_for_instance(context, **args)
 
     @refresh_cache
-    def add_fixed_ip_to_instance(self, context, instance, network_id):
+    def add_fixed_ip_to_instance(self, context, instance, network_id,
+                                 conductor_api=None):
         """Adds a fixed ip to instance from specified network."""
         args = {'instance_id': instance['uuid'],
                 'host': instance['host'],
@@ -225,7 +227,8 @@ class API(base.Base):
         self.network_rpcapi.add_fixed_ip_to_instance(context, **args)
 
     @refresh_cache
-    def remove_fixed_ip_from_instance(self, context, instance, address):
+    def remove_fixed_ip_from_instance(self, context, instance, address,
+                                      conductor_api=None):
         """Removes a fixed ip from instance from specified network."""
 
         args = {'instance_id': instance['uuid'],
@@ -248,12 +251,11 @@ class API(base.Base):
             associations['project'] = project
         self.network_rpcapi.associate(context, network_uuid, associations)
 
-    def get_instance_nw_info(self, context, instance, update_cache=True):
+    def get_instance_nw_info(self, context, instance, conductor_api=None):
         """Returns all network info related to an instance."""
         result = self._get_instance_nw_info(context, instance)
-        if update_cache:
-            update_instance_cache_with_nw_info(self, context, instance,
-                                                result)
+        update_instance_cache_with_nw_info(self, context, instance,
+                                           result, conductor_api)
         return result
 
     def _get_instance_nw_info(self, context, instance):
