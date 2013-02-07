@@ -345,6 +345,14 @@
             "updated": "%(timestamp)s"
         },
         {
+            "alias": "os-multiple-create-name-template",
+            "description": "%(text)s",
+            "links": [],
+            "name": "MultipleCreateNameTemplate",
+            "namespace": "http://docs.openstack.org/compute/ext/multiplecreatenametemplate/api/v1.1",
+            "updated": "%(timestamp)s"
+        },
+        {
             "alias": "os-networks",
             "description": "%(text)s",
             "links": [],

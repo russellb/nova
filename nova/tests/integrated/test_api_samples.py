@@ -1911,6 +1911,47 @@ class MultipleCreateXmlTest(MultipleCreateJsonTest):
     ctype = 'xml'
 
 
+class MultipleCreateNameTemplateJsonTest(ServersSampleBase):
+    extension_name = ("nova.api.openstack.compute.contrib."
+                      "multiple_create_name_template."
+                      "Multiple_create_name_template")
+
+    def test_multiple_create_name_template(self):
+        subs = {
+            'image_id': fake.get_valid_image_id(),
+            'host': self._get_host(),
+            'min_count': "2",
+            'max_count': "3",
+            'template': '%(name)s-%(count)s',
+        }
+        response = self._do_post('servers',
+                'multiple-create-name-template-post-req', subs)
+        self.assertEqual(response.status, 202)
+        subs.update(self._get_regexes())
+        return self._verify_response('multiple-create-name-template-post-resp',
+                                      subs, response)
+
+    def test_multiple_create_without_reservation_id(self):
+        subs = {
+            'image_id': fake.get_valid_image_id(),
+            'host': self._get_host(),
+            'min_count': "2",
+            'max_count': "3",
+            'template': '%(name)s-%(count)s',
+        }
+        response = self._do_post('servers',
+                'multiple-create-name-template-no-resv-post-req', subs)
+        self.assertEqual(response.status, 202)
+        subs.update(self._get_regexes())
+        return self._verify_response(
+                'multiple-create-name-template-no-resv-post-resp',
+                subs, response)
+
+
+class MultipleCreateNameTemplateXmlTest(MultipleCreateNameTemplateJsonTest):
+    ctype = 'xml'
+
+
 class ServicesJsonTest(ApiSampleTestBase):
     extension_name = "nova.api.openstack.compute.contrib.services.Services"
 

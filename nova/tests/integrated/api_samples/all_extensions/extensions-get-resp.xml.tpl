@@ -129,6 +129,9 @@
   <extension alias="os-multiple-create" updated="%(timestamp)s" namespace="http://docs.openstack.org/compute/ext/multiplecreate/api/v1.1" name="MultipleCreate">
     <description>%(text)s</description>
   </extension>
+  <extension alias="os-multiple-create-name-template" updated="%(timestamp)s" namespace="http://docs.openstack.org/compute/ext/multiplecreatenametemplate/api/v1.1" name="MultipleCreateNameTemplate">
+    <description>%(text)s</description>
+  </extension>
   <extension alias="os-networks" updated="%(timestamp)s" namespace="http://docs.openstack.org/compute/ext/os-networks/api/v1.1" name="Networks">
     <description>%(text)s</description>
   </extension>
