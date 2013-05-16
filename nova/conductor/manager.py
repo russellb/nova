@@ -57,8 +57,13 @@ class ConductorManager(manager.Manager):
         self.security_group_api = (
             openstack_driver.get_openstack_security_group_driver())
         self._network_api = None
-        self._compute_api = None
+        self.conductor_compute = ConductorComputeManager()
         self.quotas = quota.QUOTAS
+
+    def create_rpc_dispatcher(self, *args, **kwargs):
+        kwargs['additional_apis'] = [self.conductor_compute]
+        return super(ConductorManager, self).create_rpc_dispatcher(*args,
+                **kwargs)
 
     @property
     def network_api(self):
@@ -68,12 +73,6 @@ class ConductorManager(manager.Manager):
         if self._network_api is None:
             self._network_api = network.API()
         return self._network_api
-
-    @property
-    def compute_api(self):
-        if self._compute_api is None:
-            self._compute_api = compute_api.API()
-        return self._compute_api
 
     def ping(self, context, arg):
         # NOTE(russellb) This method can be removed in 2.0 of this API.  It is
@@ -93,7 +92,6 @@ class ConductorManager(manager.Manager):
                 raise KeyError("unexpected update keyword '%s'" % key)
             if key in datetime_fields and isinstance(value, basestring):
                 updates[key] = timeutils.parse_strtime(value)
-
         old_ref, instance_ref = self.db.instance_update_and_get_original(
             context, instance_uuid, updates)
         notifications.send_update(context, old_ref, instance_ref, service)
@@ -434,11 +432,51 @@ class ConductorManager(manager.Manager):
 
         return ec2_ids
 
+    # NOTE(russellb) This can be removed in the next major rev of the API.
+    # This method has been moved to the 'compute' namespace, in the
+    # ConductorComputeManager class.
     def compute_stop(self, context, instance, do_cast=True):
+        self.conductor_compute.stop(context, instance, do_cast)
+
+    # NOTE(russellb) This can be removed in the next major rev of the API.
+    # This method has been moved to the 'compute' namespace, in the
+    # ConductorComputeManager class.
+    def compute_confirm_resize(self, context, instance, migration_ref):
+        self.conductor_compute.confirm_resize(context, instance,
+                migration_ref)
+
+    # NOTE(russellb) This can be removed in the next major rev of the API.
+    # This method has been moved to the 'compute' namespace, in the
+    # ConductorComputeManager class.
+    def compute_unrescue(self, context, instance):
+        self.conductor_compute.unrescue(context, instance)
+
+
+class ConductorComputeManager(object):
+    """Namespace for compute methods.
+
+    This objects presents an rpc API for nova-conductor under the 'compute'
+    namespace.  This separates compute-related tasks that the conductor service
+    performs from other things, such as db proxy methods.
+    """
+
+    RPC_API_NAMESPACE = 'compute'
+    RPC_API_VERSION = '1.0'
+
+    def __init__(self):
+        self._compute_api = None
+
+    @property
+    def compute_api(self):
+        if self._compute_api is None:
+            self._compute_api = compute_api.API()
+        return self._compute_api
+
+    def stop(self, context, instance, do_cast=True):
         self.compute_api.stop(context, instance, do_cast)
 
-    def compute_confirm_resize(self, context, instance, migration_ref):
+    def confirm_resize(self, context, instance, migration_ref):
         self.compute_api.confirm_resize(context, instance, migration_ref)
 
-    def compute_unrescue(self, context, instance):
+    def unrescue(self, context, instance):
         self.compute_api.unrescue(context, instance)

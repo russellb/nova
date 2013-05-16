@@ -326,15 +326,22 @@ class LocalAPI(object):
     def get_ec2_ids(self, context, instance):
         return self._manager.get_ec2_ids(context, instance)
 
-    def compute_stop(self, context, instance, do_cast=True):
-        return self._manager.compute_stop(context, instance, do_cast)
 
-    def compute_confirm_resize(self, context, instance, migration_ref):
-        return self._manager.compute_confirm_resize(context, instance,
-                                                    migration_ref)
+class LocalComputeAPI(object):
+    def __init__(self):
+        # TODO(danms): This needs to be something more generic for
+        # other/future users of this sort of functionality.
+        self._manager = utils.ExceptionHelper(
+                manager.ConductorComputeManager())
 
-    def compute_unrescue(self, context, instance):
-        return self._manager.compute_unrescue(context, instance)
+    def stop(self, context, instance, do_cast=True):
+        return self._manager.stop(context, instance, do_cast)
+
+    def confirm_resize(self, context, instance, migration_ref):
+        return self._manager.confirm_resize(context, instance, migration_ref)
+
+    def unrescue(self, context, instance):
+        return self._manager.unrescue(context, instance)
 
 
 class API(object):
@@ -656,13 +663,19 @@ class API(object):
     def get_ec2_ids(self, context, instance):
         return self.conductor_rpcapi.get_ec2_ids(context, instance)
 
-    def compute_stop(self, context, instance, do_cast=True):
-        return self.conductor_rpcapi.compute_stop(context, instance, do_cast)
 
-    def compute_confirm_resize(self, context, instance, migration_ref):
-        return self.conductor_rpcapi.compute_confirm_resize(context,
-                                                            instance,
-                                                            migration_ref)
+class ComputeAPI(object):
+    """Conductor API that does updates via RPC to the ConductorManager."""
 
-    def compute_unrescue(self, context, instance):
-        return self.conductor_rpcapi.compute_unrescue(context, instance)
+    def __init__(self):
+        self.conductor_compute_rpcapi = rpcapi.ConductorComputeAPI()
+
+    def stop(self, context, instance, do_cast=True):
+        return self.conductor_compute_rpcapi.stop(context, instance, do_cast)
+
+    def confirm_resize(self, context, instance, migration_ref):
+        return self.conductor_compute_rpcapi.confirm_resize(context, instance,
+                migration_ref)
+
+    def unrescue(self, context, instance):
+        return self.conductor_compute_rpcapi.unrescue(context, instance)

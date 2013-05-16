@@ -565,27 +565,29 @@ class _BaseTestCase(object):
         self.assertEqual(result, expected)
 
     def test_compute_stop(self):
-        self.mox.StubOutWithMock(self.conductor_manager.compute_api, 'stop')
-        self.conductor_manager.compute_api.stop(self.context, 'instance', True)
+        self.mox.StubOutWithMock(self.conductor_compute_manager.compute_api,
+                'stop')
+        self.conductor_compute_manager.compute_api.stop(self.context,
+                'instance', True)
         self.mox.ReplayAll()
-        self.conductor.compute_stop(self.context, 'instance')
+        self.conductor_compute.stop(self.context, 'instance')
 
     def test_compute_confirm_resize(self):
-        self.mox.StubOutWithMock(self.conductor_manager.compute_api,
+        self.mox.StubOutWithMock(self.conductor_compute_manager.compute_api,
                                  'confirm_resize')
-        self.conductor_manager.compute_api.confirm_resize(self.context,
-                                                          'instance',
-                                                          'migration')
+        self.conductor_compute_manager.compute_api.confirm_resize(self.context,
+                  'instance', 'migration')
         self.mox.ReplayAll()
-        self.conductor.compute_confirm_resize(self.context, 'instance',
+        self.conductor_compute.confirm_resize(self.context, 'instance',
                                               'migration')
 
     def test_compute_unrescue(self):
-        self.mox.StubOutWithMock(self.conductor_manager.compute_api,
+        self.mox.StubOutWithMock(self.conductor_compute_manager.compute_api,
                                  'unrescue')
-        self.conductor_manager.compute_api.unrescue(self.context, 'instance')
+        self.conductor_compute_manager.compute_api.unrescue(self.context,
+                'instance')
         self.mox.ReplayAll()
-        self.conductor.compute_unrescue(self.context, 'instance')
+        self.conductor_compute.unrescue(self.context, 'instance')
 
 
 class ConductorTestCase(_BaseTestCase, test.TestCase):
@@ -593,7 +595,9 @@ class ConductorTestCase(_BaseTestCase, test.TestCase):
     def setUp(self):
         super(ConductorTestCase, self).setUp()
         self.conductor = conductor_manager.ConductorManager()
+        self.conductor_compute = self.conductor.conductor_compute
         self.conductor_manager = self.conductor
+        self.conductor_compute_manager = self.conductor_compute
 
     def test_block_device_mapping_update_or_create(self):
         fake_bdm = {'id': 'fake-id'}
@@ -753,7 +757,10 @@ class ConductorRPCAPITestCase(_BaseTestCase, test.TestCase):
         self.conductor_service = self.start_service(
             'conductor', manager='nova.conductor.manager.ConductorManager')
         self.conductor_manager = self.conductor_service.manager
+        self.conductor_compute_manager = \
+                self.conductor_manager.conductor_compute
         self.conductor = conductor_rpcapi.ConductorAPI()
+        self.conductor_compute = conductor_rpcapi.ConductorComputeAPI()
 
     def test_block_device_mapping_update_or_create(self):
         fake_bdm = {'id': 'fake-id'}
@@ -888,7 +895,10 @@ class ConductorAPITestCase(_BaseTestCase, test.TestCase):
         self.conductor_service = self.start_service(
             'conductor', manager='nova.conductor.manager.ConductorManager')
         self.conductor = conductor_api.API()
+        self.conductor_compute = conductor_api.ComputeAPI()
         self.conductor_manager = self.conductor_service.manager
+        self.conductor_compute_manager = \
+                self.conductor_manager.conductor_compute
         self.db = None
 
     def _do_update(self, instance_uuid, **updates):
@@ -1062,7 +1072,10 @@ class ConductorLocalAPITestCase(ConductorAPITestCase):
     def setUp(self):
         super(ConductorLocalAPITestCase, self).setUp()
         self.conductor = conductor_api.LocalAPI()
+        self.conductor_compute = conductor_api.LocalComputeAPI()
         self.conductor_manager = self.conductor._manager._target
+        self.conductor_compute_manager = \
+                self.conductor_compute._manager._target
         self.db = db
 
     def test_client_exceptions(self):

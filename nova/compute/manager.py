@@ -342,6 +342,7 @@ class ComputeManager(manager.SchedulerDependentManager):
         self.compute_api = compute.API()
         self.compute_rpcapi = compute_rpcapi.ComputeAPI()
         self.conductor_api = conductor.API()
+        self.conductor_compute_api = conductor.ComputeAPI()
         self.is_quantum_security_groups = (
             openstack_driver.is_quantum_security_groups())
         self.consoleauth_rpcapi = consoleauth.rpcapi.ConsoleAuthAPI()
@@ -3548,7 +3549,7 @@ class ComputeManager(manager.SchedulerDependentManager):
                     to_unrescue.append(instance)
 
             for instance in to_unrescue:
-                self.conductor_api.compute_unrescue(context, instance)
+                self.conductor_compute_api.unrescue(context, instance)
 
     @periodic_task.periodic_task
     def _poll_unconfirmed_resizes(self, context):
@@ -3600,7 +3601,7 @@ class ComputeManager(manager.SchedulerDependentManager):
                                             instance=instance)
                     continue
                 try:
-                    self.conductor_api.compute_confirm_resize(
+                    self.conductor_compute_api.confirm_resize(
                         context, instance, migration_ref=migration)
                 except Exception as e:
                     msg = _("Error auto-confirming resize: %(e)s. "
@@ -3910,7 +3911,7 @@ class ComputeManager(manager.SchedulerDependentManager):
                     # Note(maoy): here we call the API instead of
                     # brutally updating the vm_state in the database
                     # to allow all the hooks and checks to be performed.
-                    self.conductor_api.compute_stop(context, db_instance)
+                    self.conductor_compute_api.stop(context, db_instance)
                 except Exception:
                     # Note(maoy): there is no need to propagate the error
                     # because the same power_state will be retrieved next
@@ -3923,7 +3924,7 @@ class ComputeManager(manager.SchedulerDependentManager):
                 LOG.warn(_("Instance is suspended unexpectedly. Calling "
                            "the stop API."), instance=db_instance)
                 try:
-                    self.conductor_api.compute_stop(context, db_instance)
+                    self.conductor_compute_api.stop(context, db_instance)
                 except Exception:
                     LOG.exception(_("error during stop() in "
                                     "sync_power_state."),
@@ -3953,7 +3954,7 @@ class ComputeManager(manager.SchedulerDependentManager):
                 try:
                     # Note(maoy): this assumes that the stop API is
                     # idempotent.
-                    self.conductor_api.compute_stop(context, db_instance)
+                    self.conductor_compute_api.stop(context, db_instance)
                 except Exception:
                     LOG.exception(_("error during stop() in "
                                     "sync_power_state."),

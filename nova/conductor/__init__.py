@@ -24,3 +24,12 @@ def API(*args, **kwargs):
     else:
         api = conductor_api.API
     return api(*args, **kwargs)
+
+
+def ComputeAPI(*args, **kwargs):
+    use_local = kwargs.pop('use_local', False)
+    if oslo.config.cfg.CONF.conductor.use_local or use_local:
+        api = conductor_api.LocalComputeAPI
+    else:
+        api = conductor_api.ComputeAPI
+    return api(*args, **kwargs)

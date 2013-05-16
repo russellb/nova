@@ -88,6 +88,9 @@ class ConductorAPI(nova.openstack.common.rpc.proxy.RpcProxy):
                  instance_get_all_by_filters
     1.48 - Added compute_unrescue
     1.49 - Added columns_to_join to instance_get_by_uuid
+    (non-version impacting note: removed compute_stop, compute_confirm_resize,
+     and compute_unrescue. They have been moved to a new API under the
+     'compute' namespace.)
     """
 
     BASE_RPC_API_VERSION = '1.0'
@@ -423,20 +426,38 @@ class ConductorAPI(nova.openstack.common.rpc.proxy.RpcProxy):
         msg = self.make_msg('get_ec2_ids', instance=instance_p)
         return self.call(context, msg, version='1.42')
 
-    def compute_stop(self, context, instance, do_cast=True):
-        instance_p = jsonutils.to_primitive(instance)
-        msg = self.make_msg('compute_stop', instance=instance_p,
-                            do_cast=do_cast)
-        return self.call(context, msg, version='1.43')
 
-    def compute_confirm_resize(self, context, instance, migration_ref):
+class ConductorComputeAPI(nova.openstack.common.rpc.proxy.RpcProxy):
+    """Client side of the conductor 'compute' namespaced RPC API
+
+    API version history:
+
+    1.0 - Initial version.
+    """
+
+    BASE_RPC_API_VERSION = '1.0'
+
+    def __init__(self):
+        super(ConductorComputeAPI, self).__init__(
+                topic=CONF.conductor.topic,
+                default_version=self.BASE_RPC_API_VERSION)
+        self.namespace = 'compute'
+
+    def stop(self, context, instance, do_cast=True):
+        instance_p = jsonutils.to_primitive(instance)
+        msg = self.make_namespaced_msg('stop', self.namespace,
+                instance=instance_p, do_cast=do_cast)
+        return self.call(context, msg)
+
+    def confirm_resize(self, context, instance, migration_ref):
         instance_p = jsonutils.to_primitive(instance)
         migration_p = jsonutils.to_primitive(migration_ref)
-        msg = self.make_msg('compute_confirm_resize', instance=instance_p,
-                            migration_ref=migration_p)
-        return self.call(context, msg, version='1.46')
+        msg = self.make_namespaced_msg('confirm_resize', self.namespace,
+                instance=instance_p, migration_ref=migration_p)
+        return self.call(context, msg)
 
-    def compute_unrescue(self, context, instance):
+    def unrescue(self, context, instance):
         instance_p = jsonutils.to_primitive(instance)
-        msg = self.make_msg('compute_unrescue', instance=instance_p)
-        return self.call(context, msg, version='1.48')
+        msg = self.make_namespaced_msg('unrescue', self.namespace,
+                instance=instance_p)
+        return self.call(context, msg)

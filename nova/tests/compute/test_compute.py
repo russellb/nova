@@ -4063,7 +4063,7 @@ class ComputeTestCase(BaseTestCase):
         self.stubs.Set(self.compute.conductor_api,
                        'instance_get_all_by_filters',
                        fake_instance_get_all_by_filters)
-        self.stubs.Set(self.compute.conductor_api, 'compute_unrescue',
+        self.stubs.Set(self.compute.conductor_compute_api, 'unrescue',
                        fake_unrescue)
 
         self.flags(rescue_timeout=60)
@@ -4137,7 +4137,7 @@ class ComputeTestCase(BaseTestCase):
                 fake_migration_get_unconfirmed_by_dest_compute)
         self.stubs.Set(self.compute.conductor_api, 'migration_update',
                 fake_migration_update)
-        self.stubs.Set(self.compute.conductor_api, 'compute_confirm_resize',
+        self.stubs.Set(self.compute.conductor_compute_api, 'confirm_resize',
                 fake_confirm_resize)
 
         def fetch_instance_migration_status(instance_uuid):
