@@ -2014,6 +2014,7 @@ class BaseInstanceTypeTestCase(test.TestCase, ModelsObjectComparatorMixin):
     def setUp(self):
         super(BaseInstanceTypeTestCase, self).setUp()
         self.ctxt = context.get_admin_context()
+        self.user_ctxt = context.RequestContext('user', 'user')
 
     def _get_base_values(self):
         return {
@@ -2493,6 +2494,32 @@ class InstanceTypeTestCase(BaseInstanceTypeTestCase):
         for inst_type in inst_types:
             inst_type_by_id = db.instance_type_get(self.ctxt, inst_type['id'])
             self._assertEqualObjects(inst_type, inst_type_by_id)
+
+    def test_instance_type_get_non_public(self):
+        inst_type = self._create_inst_type({'name': 'abc', 'flavorid': '123',
+                                            'is_public': False})
+
+        inst_type_by_id = db.instance_type_get(self.ctxt, inst_type['id'])
+        self._assertEqualObjects(inst_type, inst_type_by_id)
+
+        self.assertRaises(exception.InstanceTypeNotFound, db.instance_type_get,
+                self.user_ctxt, inst_type['id'])
+
+        inst_type_by_name = db.instance_type_get_by_name(self.ctxt,
+                                                         inst_type['name'])
+        self._assertEqualObjects(inst_type, inst_type_by_name)
+
+        self.assertRaises(exception.InstanceTypeNotFoundByName,
+                db.instance_type_get_by_name, self.user_ctxt,
+                inst_type['name'])
+
+        inst_type_by_fid = db.instance_type_get_by_flavor_id(self.ctxt,
+                inst_type['flavorid'])
+        self._assertEqualObjects(inst_type, inst_type_by_fid)
+
+        self.assertRaises(exception.FlavorNotFound,
+                db.instance_type_get_by_flavor_id, self.user_ctxt,
+                inst_type['flavorid'])
 
     def test_instance_type_get_by_name(self):
         inst_types = [{'name': 'abc', 'flavorid': '123'},

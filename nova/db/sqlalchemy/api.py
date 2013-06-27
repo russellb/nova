@@ -3796,9 +3796,12 @@ def _dict_with_extra_specs(inst_type_query):
 
 
 def _instance_type_get_query(context, session=None, read_deleted=None):
-    return model_query(context, models.InstanceTypes, session=session,
+    query = model_query(context, models.InstanceTypes, session=session,
                        read_deleted=read_deleted).\
-                    options(joinedload('extra_specs'))
+                       options(joinedload('extra_specs'))
+    if not context.is_admin:
+        query = query.filter(models.InstanceTypes.is_public == True)
+    return query
 
 
 @require_context
