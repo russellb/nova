@@ -47,6 +47,8 @@ class CertAPI(rpcclient.RpcProxy):
         ... Grizzly and Havana support message version 1.1.  So, any changes to
         existing methods in 1.x after that point should be done such that they
         can handle the version_cap being set to 1.1.
+
+        2.0 - Major API rev for Icehouse
     '''
 
     #
@@ -57,7 +59,7 @@ class CertAPI(rpcclient.RpcProxy):
     # about rpc API versioning, see the docs in
     # openstack/common/rpc/dispatcher.py.
     #
-    BASE_RPC_API_VERSION = '1.0'
+    BASE_RPC_API_VERSION = '2.0'
 
     VERSION_ALIASES = {
         'grizzly': '1.1',
@@ -74,28 +76,63 @@ class CertAPI(rpcclient.RpcProxy):
         self.client = self.get_client()
 
     def revoke_certs_by_user(self, ctxt, user_id):
-        return self.client.call(ctxt, 'revoke_certs_by_user', user_id=user_id)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.0'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(ctxt, 'revoke_certs_by_user', user_id=user_id)
 
     def revoke_certs_by_project(self, ctxt, project_id):
-        return self.client.call(ctxt, 'revoke_certs_by_project',
-                                project_id=project_id)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.0'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(ctxt, 'revoke_certs_by_project',
+                          project_id=project_id)
 
     def revoke_certs_by_user_and_project(self, ctxt, user_id, project_id):
-        return self.client.call(ctxt, 'revoke_certs_by_user_and_project',
-                                user_id=user_id, project_id=project_id)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.0'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(ctxt, 'revoke_certs_by_user_and_project',
+                          user_id=user_id, project_id=project_id)
 
     def generate_x509_cert(self, ctxt, user_id, project_id):
-        return self.client.call(ctxt, 'generate_x509_cert',
-                                user_id=user_id,
-                                project_id=project_id)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.0'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(ctxt, 'generate_x509_cert',
+                          user_id=user_id,
+                          project_id=project_id)
 
     def fetch_ca(self, ctxt, project_id):
-        return self.client.call(ctxt, 'fetch_ca', project_id=project_id)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.0'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(ctxt, 'fetch_ca', project_id=project_id)
 
     def fetch_crl(self, ctxt, project_id):
-        return self.client.call(ctxt, 'fetch_crl', project_id=project_id)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.0'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(ctxt, 'fetch_crl', project_id=project_id)
 
     def decrypt_text(self, ctxt, project_id, text):
-        return self.client.call(ctxt, 'decrypt_text',
-                                project_id=project_id,
-                                text=text)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.0'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(ctxt, 'decrypt_text',
+                          project_id=project_id,
+                          text=text)
