@@ -171,7 +171,8 @@ class LocalAPI(object):
 
     def block_device_mapping_update_or_create(self, context, values):
         return self._manager.block_device_mapping_update_or_create(context,
-                                                                   values)
+                                                                   values,
+                                                                   None)
 
     def block_device_mapping_get_all_by_instance(self, context, instance,
                                                  legacy=True):
@@ -179,19 +180,22 @@ class LocalAPI(object):
             context, instance, legacy)
 
     def block_device_mapping_destroy(self, context, bdms):
-        return self._manager.block_device_mapping_destroy(context, bdms=bdms)
+        return self._manager.block_device_mapping_destroy(context, bdms,
+                None, None, None)
 
     def block_device_mapping_destroy_by_instance_and_device(self, context,
                                                             instance,
                                                             device_name):
         return self._manager.block_device_mapping_destroy(
-            context, instance=instance, device_name=device_name)
+            context, bdms=None, instance=instance, volume_id=None,
+            device_name=device_name)
 
     def block_device_mapping_destroy_by_instance_and_volume(self, context,
                                                             instance,
                                                             volume_id):
         return self._manager.block_device_mapping_destroy(
-            context, instance=instance, volume_id=volume_id)
+            context, bdms=None, instance=instance, volume_id=volume_id,
+            device_name=None)
 
     def vol_get_usage_by_time(self, context, start_time):
         return self._manager.vol_get_usage_by_time(context, start_time)
@@ -218,8 +222,6 @@ class LocalAPI(object):
 
     def service_get_by_compute_host(self, context, host):
         result = self._manager.service_get_all_by(context, 'compute', host)
-        # FIXME(comstud): A major revision bump to 2.0 should return a
-        # single entry, so we should just return 'result' at that point.
         return result[0]
 
     def service_get_by_args(self, context, host, binary):

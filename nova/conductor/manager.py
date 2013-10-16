@@ -32,7 +32,6 @@ from nova.network.security_group import openstack_driver
 from nova import notifications
 from nova.objects import base as nova_object
 from nova.objects import instance as instance_obj
-from nova.objects import migration as migration_obj
 from nova.openstack.common import excutils
 from nova.openstack.common.gettextutils import _
 from nova.openstack.common import jsonutils
@@ -74,7 +73,7 @@ class ConductorManager(manager.Manager):
     namespace.  See the ComputeTaskManager class for details.
     """
 
-    RPC_API_VERSION = '1.60'
+    RPC_API_VERSION = '2.0'
 
     def __init__(self, *args, **kwargs):
         super(ConductorManager, self).__init__(service_name='conductor',
@@ -90,7 +89,6 @@ class ConductorManager(manager.Manager):
     def create_rpc_dispatcher(self, *args, **kwargs):
         kwargs['additional_apis'] = [
             self.compute_task_mgr,
-            _ConductorV2Proxy(self)
         ]
         return super(ConductorManager, self).create_rpc_dispatcher(*args,
                 **kwargs)
@@ -119,8 +117,7 @@ class ConductorManager(manager.Manager):
                                   exception.InvalidUUID,
                                   exception.InstanceNotFound,
                                   exception.UnexpectedTaskStateError)
-    def instance_update(self, context, instance_uuid,
-                        updates, service=None):
+    def instance_update(self, context, instance_uuid, updates, service):
         for key, value in updates.iteritems():
             if key not in allowed_updates:
                 LOG.error(_("Instance update attempted for "
@@ -147,10 +144,6 @@ class ConductorManager(manager.Manager):
             self.db.instance_get_by_uuid(context, instance_uuid,
                 columns_to_join))
 
-    # NOTE(hanlind): This method can be removed in v2.0 of the RPC API.
-    def instance_get_all(self, context):
-        return jsonutils.to_primitive(self.db.instance_get_all(context))
-
     def instance_get_all_by_host(self, context, host, node=None,
                                  columns_to_join=None):
         if node is not None:
@@ -161,36 +154,11 @@ class ConductorManager(manager.Manager):
                                                       columns_to_join)
         return jsonutils.to_primitive(result)
 
-    # NOTE(comstud): This method is now deprecated and can be removed in
-    # version v2.0 of the RPC API
-    @rpc_common.client_exceptions(exception.MigrationNotFound)
-    def migration_get(self, context, migration_id):
-        migration_ref = self.db.migration_get(context.elevated(),
-                                              migration_id)
-        return jsonutils.to_primitive(migration_ref)
-
-    # NOTE(comstud): This method is now deprecated and can be removed in
-    # version v2.0 of the RPC API
-    def migration_get_unconfirmed_by_dest_compute(self, context,
-                                                  confirm_window,
-                                                  dest_compute):
-        migrations = self.db.migration_get_unconfirmed_by_dest_compute(
-            context, confirm_window, dest_compute)
-        return jsonutils.to_primitive(migrations)
-
     def migration_get_in_progress_by_host_and_node(self, context,
                                                    host, node):
         migrations = self.db.migration_get_in_progress_by_host_and_node(
             context, host, node)
         return jsonutils.to_primitive(migrations)
-
-    # NOTE(comstud): This method can be removed in v2.0 of the RPC API.
-    def migration_create(self, context, instance, values):
-        values.update({'instance_uuid': instance['uuid'],
-                       'source_compute': instance['host'],
-                       'source_node': instance['node']})
-        migration_ref = self.db.migration_create(context.elevated(), values)
-        return jsonutils.to_primitive(migration_ref)
 
     @rpc_common.client_exceptions(exception.MigrationNotFound)
     def migration_update(self, context, migration, status):
@@ -221,22 +189,6 @@ class ConductorManager(manager.Manager):
                                                    host, key)
         return jsonutils.to_primitive(aggregates)
 
-    # NOTE(danms): This method is now deprecated and can be removed in
-    # version 2.0 of the RPC API
-    def aggregate_metadata_add(self, context, aggregate, metadata,
-                               set_delete=False):
-        new_metadata = self.db.aggregate_metadata_add(context.elevated(),
-                                                      aggregate['id'],
-                                                      metadata, set_delete)
-        return jsonutils.to_primitive(new_metadata)
-
-    # NOTE(danms): This method is now deprecated and can be removed in
-    # version 2.0 of the RPC API
-    @rpc_common.client_exceptions(exception.AggregateMetadataNotFound)
-    def aggregate_metadata_delete(self, context, aggregate, key):
-        self.db.aggregate_metadata_delete(context.elevated(),
-                                          aggregate['id'], key)
-
     def aggregate_metadata_get_by_host(self, context, host,
                                        key='availability_zone'):
         result = self.db.aggregate_metadata_get_by_host(context, host, key)
@@ -254,11 +206,6 @@ class ConductorManager(manager.Manager):
                                     update_cells=update_cells)
         usage = self.db.bw_usage_get(context, uuid, start_period, mac)
         return jsonutils.to_primitive(usage)
-
-    # NOTE(russellb) This method can be removed in 2.0 of this API.  It is
-    # deprecated in favor of the method in the base API.
-    def get_backdoor_port(self, context):
-        return self.backdoor_port
 
     def security_group_get_by_instance(self, context, instance):
         group = self.db.security_group_get_by_instance(context,
@@ -279,8 +226,7 @@ class ConductorManager(manager.Manager):
                                                  architecture)
         return jsonutils.to_primitive(info)
 
-    def block_device_mapping_update_or_create(self, context, values,
-                                              create=None):
+    def block_device_mapping_update_or_create(self, context, values, create):
         if create is None:
             bdm = self.db.block_device_mapping_update_or_create(context,
                                                                 values)
@@ -296,16 +242,15 @@ class ConductorManager(manager.Manager):
                                                       create=create)
 
     def block_device_mapping_get_all_by_instance(self, context, instance,
-                                                 legacy=True):
+                                                 legacy):
         bdms = self.db.block_device_mapping_get_all_by_instance(
             context, instance['uuid'])
         if legacy:
             bdms = block_device.legacy_mapping(bdms)
         return jsonutils.to_primitive(bdms)
 
-    def block_device_mapping_destroy(self, context, bdms=None,
-                                     instance=None, volume_id=None,
-                                     device_name=None):
+    def block_device_mapping_destroy(self, context, bdms, instance, volume_id,
+                                     device_name):
         if bdms is not None:
             for bdm in bdms:
                 self.db.block_device_mapping_destroy(context, bdm['id'])
@@ -345,26 +290,14 @@ class ConductorManager(manager.Manager):
                                       " invocation"))
 
     def instance_get_all_by_filters(self, context, filters, sort_key,
-                                    sort_dir, columns_to_join=None):
+                                    sort_dir, columns_to_join):
         result = self.db.instance_get_all_by_filters(
             context, filters, sort_key, sort_dir,
             columns_to_join=columns_to_join)
         return jsonutils.to_primitive(result)
 
-    # NOTE(hanlind): This method can be removed in v2.0 of the RPC API.
-    def instance_get_all_hung_in_rebooting(self, context, timeout):
-        result = self.db.instance_get_all_hung_in_rebooting(context, timeout)
-        return jsonutils.to_primitive(result)
-
-    def instance_get_active_by_window(self, context, begin, end=None,
-                                      project_id=None, host=None):
-        # Unused, but cannot remove until major RPC version bump
-        result = self.db.instance_get_active_by_window(context, begin, end,
-                                                       project_id, host)
-        return jsonutils.to_primitive(result)
-
-    def instance_get_active_by_window_joined(self, context, begin, end=None,
-                                             project_id=None, host=None):
+    def instance_get_active_by_window_joined(self, context, begin, end,
+                                             project_id, host):
         result = self.db.instance_get_active_by_window_joined(
             context, begin, end, project_id, host)
         return jsonutils.to_primitive(result)
@@ -375,12 +308,6 @@ class ConductorManager(manager.Manager):
     def instance_info_cache_delete(self, context, instance):
         self.db.instance_info_cache_delete(context, instance['uuid'])
 
-    # NOTE(hanlind): This method is now deprecated and can be removed in
-    # version v2.0 of the RPC API.
-    def instance_info_cache_update(self, context, instance, values):
-        self.db.instance_info_cache_update(context, instance['uuid'],
-                                           values)
-
     def instance_type_get(self, context, instance_type_id):
         result = self.db.flavor_get(context, instance_type_id)
         return jsonutils.to_primitive(result)
@@ -389,16 +316,8 @@ class ConductorManager(manager.Manager):
         result = self.db.instance_fault_create(context, values)
         return jsonutils.to_primitive(result)
 
-    # NOTE(kerrin): This method can be removed in v2.0 of the RPC API.
-    def vol_get_usage_by_time(self, context, start_time):
-        result = self.db.vol_get_usage_by_time(context, start_time)
-        return jsonutils.to_primitive(result)
-
-    # NOTE(kerrin): The last_refreshed argument is unused by this method
-    # and can be removed in v2.0 of the RPC API.
     def vol_usage_update(self, context, vol_id, rd_req, rd_bytes, wr_req,
-                         wr_bytes, instance, last_refreshed=None,
-                         update_totals=False):
+                         wr_bytes, instance, update_totals=False):
         vol_usage = self.db.vol_usage_update(context, vol_id,
                                              rd_req, rd_bytes,
                                              wr_req, wr_bytes,
@@ -420,7 +339,6 @@ class ConductorManager(manager.Manager):
         elif all((topic, host)):
             if topic == 'compute':
                 result = self.db.service_get_by_compute_host(context, host)
-                # FIXME(comstud) Potentially remove this on bump to v2.0
                 result = [result]
             else:
                 result = self.db.service_get_by_host_and_topic(context,
@@ -532,32 +450,6 @@ class ConductorManager(manager.Manager):
 
         return ec2_ids
 
-    # NOTE(danms): This method is now deprecated and can be removed in
-    # version v2.0 of the RPC API
-    def compute_stop(self, context, instance, do_cast=True):
-        # NOTE(mriedem): Clients using an interface before 1.43 will be sending
-        # dicts so we need to handle that here since compute/api::stop()
-        # requires an object.
-        if isinstance(instance, dict):
-            instance = instance_obj.Instance._from_db_object(
-                                context, instance_obj.Instance(), instance)
-        self.compute_api.stop(context, instance, do_cast)
-
-    # NOTE(comstud): This method is now deprecated and can be removed in
-    # version v2.0 of the RPC API
-    def compute_confirm_resize(self, context, instance, migration_ref):
-        if isinstance(instance, dict):
-            attrs = ['metadata', 'system_metadata', 'info_cache',
-                     'security_groups']
-            instance = instance_obj.Instance._from_db_object(
-                                context, instance_obj.Instance(), instance,
-                                expected_attrs=attrs)
-        if isinstance(migration_ref, dict):
-            migration_ref = migration_obj.Migration._from_db_object(
-                                context.elevated(), migration_ref)
-        self.compute_api.confirm_resize(context, instance,
-                                        migration=migration_ref)
-
     def compute_unrescue(self, context, instance):
         self.compute_api.unrescue(context, instance)
 
@@ -608,11 +500,6 @@ class ConductorManager(manager.Manager):
         # method anyway
         updates['obj_what_changed'] = objinst.obj_what_changed()
         return updates, result
-
-    # NOTE(danms): This method is now deprecated and can be removed in
-    # v2.0 of the RPC API
-    def compute_reboot(self, context, instance, reboot_type):
-        self.compute_api.reboot(context, instance, reboot_type)
 
 
 class ComputeTaskManager(base.Base):
@@ -832,208 +719,3 @@ class ComputeTaskManager(base.Base):
                 del(sys_meta[key])
         instance.system_metadata = sys_meta
         instance.save()
-
-
-class _ConductorV2Proxy(object):
-
-    RPC_API_VERSION = '2.0'
-
-    def __init__(self, manager):
-        self.manager = manager
-
-    # service now always present
-    def instance_update(self, context, instance_uuid, updates, service):
-        return self.manager.instance_update(context, instance_uuid, updates,
-                service)
-
-    def instance_get(self, context, instance_id):
-        return self.manager.instance_get(context, instance_id)
-
-    def instance_get_by_uuid(self, context, instance_uuid, columns_to_join):
-        return self.manager.instance_get_by_uuid(context, instance_uuid,
-                columns_to_join)
-
-    def migration_get_in_progress_by_host_and_node(self, context,
-                                                   host, node):
-        return self.manager.migration_get_in_progress_by_host_and_node(
-                context, host, node)
-
-    def migration_update(self, context, migration, status):
-        return self.manager.migration_update(context, migration, status)
-
-    def aggregate_host_add(self, context, aggregate, host):
-        return self.manager.aggregate_host_add(context, aggregate, host)
-
-    def aggregate_host_delete(self, context, aggregate, host):
-        return self.manager.aggregate_host_delete(context, aggregate, host)
-
-    def aggregate_get(self, context, aggregate_id):
-        return self.manager.aggregate_get(context, aggregate_id)
-
-    def aggregate_get_by_host(self, context, host, key):
-        return self.manager.aggregate_get_by_host(context, host, key)
-
-    def aggregate_metadata_get_by_host(self, context, host, key):
-        return self.manager.aggregate_metadata_get_by_host(context, host, key)
-
-    def bw_usage_update(self, context, uuid, mac, start_period,
-                        bw_in, bw_out, last_ctr_in, last_ctr_out,
-                        last_refreshed, update_cells):
-        return self.manager.bw_usage_update(context, uuid, mac,
-                start_period, bw_in, bw_out, last_ctr_in, last_ctr_out,
-                last_refreshed, update_cells)
-
-    def security_group_get_by_instance(self, context, instance):
-        return self.manager.security_group_get_by_instance(context, instance)
-
-    def security_group_rule_get_by_security_group(self, context, secgroup):
-        return self.manager.security_group_rule_get_by_security_group(
-                context, secgroup)
-
-    def provider_fw_rule_get_all(self, context):
-        return self.manager.provider_fw_rule_get_all(context)
-
-    def agent_build_get_by_triple(self, context, hypervisor, os, architecture):
-        return self.manager.agent_build_get_by_triple(context, hypervisor,
-                os, architecture)
-
-    # create now always present
-    def block_device_mapping_update_or_create(self, context, values, create):
-        return self.manager.block_device_mapping_update_or_create(context,
-                values, create)
-
-    # legacy now always present
-    def block_device_mapping_get_all_by_instance(self, context, instance,
-                                                 legacy):
-        return self.manager.block_device_mapping_get_all_by_instance(context,
-                instance, legacy)
-
-    # all parameters now present
-    def block_device_mapping_destroy(self, context, bdms, instance, volume_id,
-                                     device_name):
-        return self.manager.block_device_mapping_destroy(context, bdms,
-                instance, volume_id, device_name)
-
-    # columns_to_join always present
-    def instance_get_all_by_filters(self, context, filters, sort_key,
-                                    sort_dir, columns_to_join):
-        return self.manager.instance_get_all_by_filters(context, filters,
-                sort_key, sort_dir, columns_to_join)
-
-    # all parameters now present
-    def instance_get_active_by_window_joined(self, context, begin, end,
-                                             project_id, host):
-        return self.manager.instance_get_active_by_window_joined(
-                context, begin, end, project_id, host)
-
-    def instance_destroy(self, context, instance):
-        return self.manager.instance_destroy(context, instance)
-
-    def instance_info_cache_delete(self, context, instance):
-        return self.manager.instance_info_cache_delete(context, instance)
-
-    def instance_type_get(self, context, instance_type_id):
-        return self.manager.instance_type_get(context, instance_type_id)
-
-    def vol_get_usage_by_time(self, context, start_time):
-        return self.manager.vol_get_usage_by_time(context, start_time)
-
-    def vol_usage_update(self, context, vol_id, rd_req, rd_bytes, wr_req,
-                         wr_bytes, instance, update_totals):
-        return self.manager.vol_usage_update(context, vol_id, rd_req, rd_bytes,
-                wr_req, wr_bytes, instance, update_totals=update_totals)
-
-    def service_get_all_by(self, context, topic, host, binary):
-        return self.manager.service_get_all_by(context, topic, host, binary)
-
-    def instance_get_all_by_host(self, context, host, node, columns_to_join):
-        return self.manager.instance_get_all_by_host(context, host, node,
-                columns_to_join)
-
-    def instance_fault_create(self, context, values):
-        return self.manager.instance_fault_create(context, values)
-
-    def action_event_start(self, context, values):
-        return self.manager.action_event_start(context, values)
-
-    def action_event_finish(self, context, values):
-        return self.manager.action_event_finish(context, values)
-
-    def service_create(self, context, values):
-        return self.manager.service_create(context, values)
-
-    def service_destroy(self, context, service_id):
-        return self.manager.service_destroy(context, service_id)
-
-    def compute_node_create(self, context, values):
-        return self.manager.compute_node_create(context, values)
-
-    def compute_node_update(self, context, node, values, prune_stats):
-        return self.manager.compute_node_update(context, node, values,
-                prune_stats)
-
-    def compute_node_delete(self, context, node):
-        return self.manager.compute_node_delete(context, node)
-
-    def service_update(self, context, service, values):
-        return self.manager.service_update(context, service, values)
-
-    def task_log_get(self, context, task_name, begin, end, host, state):
-        return self.manager.task_log_get(context, task_name, begin, end, host,
-                state)
-
-    def task_log_begin_task(self, context, task_name, begin, end, host,
-                            task_items, message):
-        return self.manager.task_log_begin_task(context, task_name, begin, end,
-                host, task_items, message)
-
-    def task_log_end_task(self, context, task_name, begin, end, host, errors,
-                          message):
-        return self.manager.task_log_end_task(context, task_name, begin, end,
-                host, errors, message)
-
-    def notify_usage_exists(self, context, instance, current_period,
-                            ignore_missing_network_data,
-                            system_metadata, extra_usage_info):
-        return self.manager.notify_usage_exists(context, instance,
-                current_period, ignore_missing_network_data, system_metadata,
-                extra_usage_info)
-
-    def security_groups_trigger_handler(self, context, event, args):
-        return self.manager.security_groups_trigger_handler(context, event,
-                args)
-
-    def security_groups_trigger_members_refresh(self, context, group_ids):
-        return self.manager.security_groups_trigger_members_refresh(context,
-                group_ids)
-
-    def network_migrate_instance_start(self, context, instance, migration):
-        return self.manager.network_migrate_instance_start(context, instance,
-                migration)
-
-    def network_migrate_instance_finish(self, context, instance, migration):
-        return self.manager.network_migrate_instance_finish(context, instance,
-                migration)
-
-    def quota_commit(self, context, reservations, project_id, user_id):
-        return self.manager.quota_commit(context, reservations, project_id,
-                user_id)
-
-    def quota_rollback(self, context, reservations, project_id, user_id):
-        return self.manager.quota_rollback(context, reservations, project_id,
-                user_id)
-
-    def get_ec2_ids(self, context, instance):
-        return self.manager.get_ec2_ids(context, instance)
-
-    def compute_unrescue(self, context, instance):
-        return self.manager.compute_unrescue(context, instance)
-
-    def object_class_action(self, context, objname, objmethod, objver,
-                            args, kwargs):
-        return self.manager.object_class_action(context, objname, objmethod,
-                objver, args, kwargs)
-
-    def object_action(self, context, objinst, objmethod, args, kwargs):
-        return self.manager.object_action(context, objinst, objmethod, args,
-                kwargs)

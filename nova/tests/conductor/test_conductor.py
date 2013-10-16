@@ -35,7 +35,6 @@ from nova import notifications
 from nova.objects import base as obj_base
 from nova.objects import fields
 from nova.objects import instance as instance_obj
-from nova.objects import migration as migration_obj
 from nova.openstack.common import jsonutils
 from nova.openstack.common.rpc import common as rpc_common
 from nova.openstack.common import timeutils
@@ -46,7 +45,6 @@ from nova.tests.compute import test_compute
 from nova.tests import fake_instance
 from nova.tests import fake_instance_actions
 from nova.tests import fake_notifier
-from nova.tests.objects import test_migration
 from nova import utils
 
 
@@ -98,7 +96,7 @@ class _BaseTestCase(object):
 
     def _do_update(self, instance_uuid, **updates):
         return self.conductor.instance_update(self.context, instance_uuid,
-                                              updates)
+                                              updates, service=None)
 
     def test_instance_update(self):
         instance = self._create_fake_instance()
@@ -300,15 +298,6 @@ class _BaseTestCase(object):
         self.mox.ReplayAll()
         result = self.conductor.instance_type_get(self.context, 'fake-id')
         self.assertEqual(result, 'fake-type')
-
-    def test_vol_get_usage_by_time(self):
-        self.mox.StubOutWithMock(db, 'vol_get_usage_by_time')
-        db.vol_get_usage_by_time(self.context, 'fake-time').AndReturn(
-            'fake-usage')
-        self.mox.ReplayAll()
-        result = self.conductor.vol_get_usage_by_time(self.context,
-                                                      'fake-time')
-        self.assertEqual(result, 'fake-usage')
 
     def test_vol_usage_update(self):
         self.mox.StubOutWithMock(db, 'vol_usage_update')
@@ -547,60 +536,6 @@ class ConductorTestCase(_BaseTestCase, test.TestCase):
         self.conductor = conductor_manager.ConductorManager()
         self.conductor_manager = self.conductor
 
-    def test_instance_info_cache_update(self):
-        fake_values = {'key1': 'val1', 'key2': 'val2'}
-        fake_inst = {'uuid': 'fake-uuid'}
-        self.mox.StubOutWithMock(db, 'instance_info_cache_update')
-        db.instance_info_cache_update(self.context, 'fake-uuid',
-                                      fake_values)
-        self.mox.ReplayAll()
-        self.conductor.instance_info_cache_update(self.context,
-                                                  fake_inst,
-                                                  fake_values)
-
-    def test_migration_get(self):
-        migration = db.migration_create(self.context.elevated(),
-                {'instance_uuid': 'fake-uuid',
-                 'status': 'migrating'})
-        self.assertEqual(jsonutils.to_primitive(migration),
-                         self.conductor.migration_get(self.context,
-                                                      migration['id']))
-
-    def test_migration_get_unconfirmed_by_dest_compute(self):
-        self.mox.StubOutWithMock(db,
-                                 'migration_get_unconfirmed_by_dest_compute')
-        db.migration_get_unconfirmed_by_dest_compute(self.context,
-                                                     'fake-window',
-                                                     'fake-host')
-        self.mox.ReplayAll()
-        self.conductor.migration_get_unconfirmed_by_dest_compute(self.context,
-                                                                 'fake-window',
-                                                                 'fake-host')
-
-    def test_compute_confirm_resize(self):
-        self.mox.StubOutWithMock(self.conductor_manager.compute_api,
-                                 'confirm_resize')
-        self.conductor_manager.compute_api.confirm_resize(
-                self.context, 'instance', migration='migration')
-        self.mox.ReplayAll()
-        self.conductor.compute_confirm_resize(self.context, 'instance',
-                                              'migration')
-
-    def test_migration_create(self):
-        inst = {'uuid': 'fake-uuid',
-                'host': 'fake-host',
-                'node': 'fake-node'}
-        self.mox.StubOutWithMock(db, 'migration_create')
-        db.migration_create(self.context.elevated(),
-                            {'instance_uuid': inst['uuid'],
-                             'source_compute': inst['host'],
-                             'source_node': inst['node'],
-                             'fake-key': 'fake-value'}).AndReturn('result')
-        self.mox.ReplayAll()
-        result = self.conductor.migration_create(self.context, inst,
-                                                 {'fake-key': 'fake-value'})
-        self.assertEqual(result, 'result')
-
     def test_block_device_mapping_update_or_create(self):
         fake_bdm = {'id': 'fake-id', 'device_name': 'foo'}
         fake_bdm2 = {'id': 'fake-id', 'device_name': 'foo2'}
@@ -632,7 +567,8 @@ class ConductorTestCase(_BaseTestCase, test.TestCase):
                                                              fake_bdm,
                                                              create=False)
         self.conductor.block_device_mapping_update_or_create(self.context,
-                                                             fake_bdm)
+                                                             fake_bdm,
+                                                             create=None)
 
     def test_block_device_mapping_destroy(self):
         fake_bdm = {'id': 'fake-bdm',
@@ -676,13 +612,17 @@ class ConductorTestCase(_BaseTestCase, test.TestCase):
         self.mox.ReplayAll()
         self.conductor.block_device_mapping_destroy(self.context,
                                                     [fake_bdm,
-                                                     fake_bdm2])
-        self.conductor.block_device_mapping_destroy(self.context,
+                                                     fake_bdm2], None, None,
+                                                    None)
+        self.conductor.block_device_mapping_destroy(self.context, bdms=None,
                                                     instance=fake_inst,
+                                                    volume_id=None,
                                                     device_name='fake-device')
         self.conductor.block_device_mapping_destroy(self.context,
+                                                    bdms=None,
                                                     instance=fake_inst,
-                                                    volume_id='fake-volume')
+                                                    volume_id='fake-volume',
+                                                    device_name=None)
 
     def test_instance_get_all_by_filters(self):
         filters = {'foo': 'bar'}
@@ -692,7 +632,8 @@ class ConductorTestCase(_BaseTestCase, test.TestCase):
                                        columns_to_join=None)
         self.mox.ReplayAll()
         self.conductor.instance_get_all_by_filters(self.context, filters,
-                                                   'fake-key', 'fake-sort')
+                                                   'fake-key', 'fake-sort',
+                                                   None)
 
     def test_instance_get_all_by_host(self):
         self.mox.StubOutWithMock(db, 'instance_get_all_by_host')
@@ -788,23 +729,6 @@ class ConductorTestCase(_BaseTestCase, test.TestCase):
         self.conductor.security_groups_trigger_handler(self.context,
                                                        'event', ['args'])
 
-    def test_compute_confirm_resize_with_objects(self):
-        # use an instance object rather than a dict
-        instance = self._create_fake_instance()
-        inst_obj = instance_obj.Instance._from_db_object(
-                        self.context, instance_obj.Instance(), instance)
-        migration = test_migration.fake_db_migration()
-        mig_obj = migration_obj.Migration._from_db_object(
-                self.context.elevated(), migration_obj.Migration(),
-                migration)
-        self.mox.StubOutWithMock(self.conductor_manager.compute_api,
-                                 'confirm_resize')
-        self.conductor_manager.compute_api.confirm_resize(
-                        self.context, inst_obj, migration=mig_obj)
-        self.mox.ReplayAll()
-        self.conductor.compute_confirm_resize(self.context, inst_obj,
-                                              mig_obj)
-
     def _test_object_action(self, is_classmethod, raise_exception):
         class TestObject(obj_base.NovaObject):
             def foo(self, context, raise_exception=False):
@@ -863,27 +787,6 @@ class ConductorTestCase(_BaseTestCase, test.TestCase):
         # the same, and thus 'dict' will not be reported as changed
         self.assertIn('dict', updates)
         self.assertEqual({'foo': 'bar'}, updates['dict'])
-
-    def test_aggregate_metadata_add(self):
-        aggregate = {'name': 'fake aggregate', 'id': 'fake-id'}
-        metadata = {'foo': 'bar'}
-        self.mox.StubOutWithMock(db, 'aggregate_metadata_add')
-        db.aggregate_metadata_add(
-            mox.IgnoreArg(), aggregate['id'], metadata, False).AndReturn(
-                metadata)
-        self.mox.ReplayAll()
-        result = self.conductor.aggregate_metadata_add(self.context,
-                                                       aggregate,
-                                                       metadata)
-        self.assertEqual(result, metadata)
-
-    def test_aggregate_metadata_delete(self):
-        aggregate = {'name': 'fake aggregate', 'id': 'fake-id'}
-        self.mox.StubOutWithMock(db, 'aggregate_metadata_delete')
-        db.aggregate_metadata_delete(mox.IgnoreArg(), aggregate['id'], 'fake')
-        self.mox.ReplayAll()
-        self.conductor.aggregate_metadata_delete(self.context, aggregate,
-                                                 'fake')
 
 
 class ConductorRPCAPITestCase(_BaseTestCase, test.TestCase):
