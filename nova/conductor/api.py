@@ -197,13 +197,12 @@ class LocalAPI(object):
         return self._manager.vol_get_usage_by_time(context, start_time)
 
     def vol_usage_update(self, context, vol_id, rd_req, rd_bytes, wr_req,
-                         wr_bytes, instance, last_refreshed=None,
-                         update_totals=False):
+                         wr_bytes, instance, update_totals=False):
         return self._manager.vol_usage_update(context, vol_id,
                                               rd_req, rd_bytes,
                                               wr_req, wr_bytes,
-                                              instance, last_refreshed,
-                                              update_totals)
+                                              instance,
+                                              update_totals=update_totals)
 
     def service_get_all(self, context):
         return self._manager.service_get_all_by(context)

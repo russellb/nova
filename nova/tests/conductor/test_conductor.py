@@ -332,7 +332,7 @@ class _BaseTestCase(object):
 
         self.conductor.vol_usage_update(self.context, 'fake-vol',
                                         22, 33, 44, 55, fake_inst,
-                                        'fake-update-time', False)
+                                        False)
 
         self.assertEqual(1, len(fake_notifier.NOTIFICATIONS))
         msg = fake_notifier.NOTIFICATIONS[0]

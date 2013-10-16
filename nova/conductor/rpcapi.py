@@ -18,7 +18,6 @@ from oslo.config import cfg
 
 from nova.objects import base as objects_base
 from nova.openstack.common import jsonutils
-from nova.openstack.common.rpc import common as rpc_common
 from nova import rpcclient
 
 CONF = cfg.CONF
@@ -117,9 +116,11 @@ class ConductorAPI(rpcclient.RpcProxy):
 
     1.59 - Remove instance_info_cache_update()
     1.60 - Remove aggregate_metadata_add() and aggregate_metadata_delete()
+
+    2.0 - Drop 1.x backwards compat
     """
 
-    BASE_RPC_API_VERSION = '1.0'
+    BASE_RPC_API_VERSION = '2.0'
 
     VERSION_ALIASES = {
         'grizzly': '1.48',
@@ -138,70 +139,104 @@ class ConductorAPI(rpcclient.RpcProxy):
 
     def instance_update(self, context, instance_uuid, updates,
                         service=None):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.38'
         updates_p = jsonutils.to_primitive(updates)
-        cctxt = self.client.prepare(version='1.38')
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'instance_update',
                           instance_uuid=instance_uuid,
                           updates=updates_p,
                           service=service)
 
     def instance_get(self, context, instance_id):
-        cctxt = self.client.prepare(version='1.24')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.24'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'instance_get', instance_id=instance_id)
 
     def instance_get_by_uuid(self, context, instance_uuid,
                              columns_to_join=None):
-        if self.client.can_send_version('1.49'):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
             version = '1.49'
-            kwargs = {'instance_uuid': instance_uuid,
-                      'columns_to_join': columns_to_join}
-        else:
-            version = '1.2'
-            kwargs = {'instance_uuid': instance_uuid}
         cctxt = self.client.prepare(version=version)
+        kwargs = {'instance_uuid': instance_uuid,
+                  'columns_to_join': columns_to_join}
         return cctxt.call(context, 'instance_get_by_uuid', **kwargs)
 
     def migration_get_in_progress_by_host_and_node(self, context,
                                                    host, node):
-        cctxt = self.client.prepare(version='1.31')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.31'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context,
                           'migration_get_in_progress_by_host_and_node',
                           host=host, node=node)
 
     def migration_update(self, context, migration, status):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.49'
+        cctxt = self.client.prepare(version=version)
         migration_p = jsonutils.to_primitive(migration)
-        cctxt = self.client.prepare(version='1.1')
         return cctxt.call(context, 'migration_update',
                           migration=migration_p,
                           status=status)
 
     def aggregate_host_add(self, context, aggregate, host):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.3'
+        cctxt = self.client.prepare(version=version)
         aggregate_p = jsonutils.to_primitive(aggregate)
-        cctxt = self.client.prepare(version='1.3')
         return cctxt.call(context, 'aggregate_host_add',
                           aggregate=aggregate_p,
                           host=host)
 
     def aggregate_host_delete(self, context, aggregate, host):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.3'
+        cctxt = self.client.prepare(version=version)
         aggregate_p = jsonutils.to_primitive(aggregate)
-        cctxt = self.client.prepare(version='1.3')
         return cctxt.call(context, 'aggregate_host_delete',
                           aggregate=aggregate_p,
                           host=host)
 
     def aggregate_get(self, context, aggregate_id):
-        cctxt = self.client.prepare(version='1.11')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.11'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'aggregate_get', aggregate_id=aggregate_id)
 
     def aggregate_get_by_host(self, context, host, key=None):
-        cctxt = self.client.prepare(version='1.7')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.7'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'aggregate_get_by_host', host=host, key=key)
 
     def aggregate_metadata_get_by_host(self, context, host, key):
-        cctxt = self.client.prepare(version='1.42')
-        return cctxt.call(context, 'aggregate_metadata_get_by_host',
-                          host=host,
-                          key=key)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.42'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(context, 'aggregate_metadata_get_by_host', host=host,
+                key=key)
 
     def bw_usage_update(self, context, uuid, mac, start_period,
                         bw_in=None, bw_out=None,
@@ -210,206 +245,300 @@ class ConductorAPI(rpcclient.RpcProxy):
         msg_kwargs = dict(uuid=uuid, mac=mac, start_period=start_period,
                           bw_in=bw_in, bw_out=bw_out, last_ctr_in=last_ctr_in,
                           last_ctr_out=last_ctr_out,
-                          last_refreshed=last_refreshed)
-
-        if self.client.can_send_version('1.54'):
+                          last_refreshed=last_refreshed,
+                          update_cells=update_cells)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
             version = '1.54'
-            msg_kwargs['update_cells'] = update_cells
-        else:
-            version = '1.5'
-
         cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'bw_usage_update', **msg_kwargs)
 
     def security_group_get_by_instance(self, context, instance):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.8'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
-        cctxt = self.client.prepare(version='1.8')
         return cctxt.call(context, 'security_group_get_by_instance',
-                          instance=instance_p)
+                                instance=instance_p)
 
     def security_group_rule_get_by_security_group(self, context, secgroup):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.8'
+        cctxt = self.client.prepare(version=version)
         secgroup_p = jsonutils.to_primitive(secgroup)
-        cctxt = self.client.prepare(version='1.8')
-        return cctxt.call(context, 'security_group_rule_get_by_security_group',
-                          secgroup=secgroup_p)
+        return cctxt.call(context,
+                'security_group_rule_get_by_security_group',
+                secgroup=secgroup_p)
 
     def provider_fw_rule_get_all(self, context):
-        cctxt = self.client.prepare(version='1.9')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.9'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'provider_fw_rule_get_all')
 
     def agent_build_get_by_triple(self, context, hypervisor, os, architecture):
-        cctxt = self.client.prepare(version='1.10')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.10'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'agent_build_get_by_triple',
-                          hypervisor=hypervisor, os=os,
-                          architecture=architecture)
+                hypervisor=hypervisor, os=os, architecture=architecture)
 
     def block_device_mapping_update_or_create(self, context, values,
                                               create=None):
-        cctxt = self.client.prepare(version='1.12')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.12'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'block_device_mapping_update_or_create',
-                          values=values, create=create)
+                values=values, create=create)
 
     def block_device_mapping_get_all_by_instance(self, context, instance,
                                                  legacy=True):
-        instance_p = jsonutils.to_primitive(instance)
-        if self.client.can_send_version('1.51'):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
             version = '1.51'
-            kwargs = {'legacy': legacy}
-        elif legacy:
-            # If the remote side is >= 1.51, it defaults to legacy=True.
-            # If it's older, it only understands the legacy format.
-            version = '1.13'
-            kwargs = {}
-        else:
-            # If we require new style data, but can't ask for it, then we must
-            # fail here.
-            raise rpc_common.RpcVersionCapError(version_cap=self.version_cap)
-
         cctxt = self.client.prepare(version=version)
-        return cctxt.call(context, 'block_device_mapping_get_all_by_instance',
-                          instance=instance_p, **kwargs)
+        instance_p = jsonutils.to_primitive(instance)
+        return cctxt.call(context,
+                'block_device_mapping_get_all_by_instance',
+                instance=instance_p, legacy=legacy)
 
     def block_device_mapping_destroy(self, context, bdms=None,
                                      instance=None, volume_id=None,
                                      device_name=None):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.14'
+        cctxt = self.client.prepare(version=version)
         bdms_p = jsonutils.to_primitive(bdms)
         instance_p = jsonutils.to_primitive(instance)
-        cctxt = self.client.prepare(version='1.14')
-        return cctxt.call(context, 'block_device_mapping_destroy',
-                          bdms=bdms_p, instance=instance_p,
-                          volume_id=volume_id, device_name=device_name)
+        return cctxt.call(context, 'block_device_mapping_destroy', bdms=bdms_p,
+                instance=instance_p, volume_id=volume_id,
+                device_name=device_name)
 
     def instance_get_all_by_filters(self, context, filters, sort_key,
                                     sort_dir, columns_to_join=None):
-        cctxt = self.client.prepare(version='1.47')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.47'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'instance_get_all_by_filters',
-                          filters=filters, sort_key=sort_key,
-                          sort_dir=sort_dir, columns_to_join=columns_to_join)
+                filters=filters, sort_key=sort_key, sort_dir=sort_dir,
+                columns_to_join=columns_to_join)
 
     def instance_get_active_by_window_joined(self, context, begin, end=None,
                                              project_id=None, host=None):
-        cctxt = self.client.prepare(version='1.35')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.35'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'instance_get_active_by_window_joined',
-                          begin=begin, end=end, project_id=project_id,
-                          host=host)
+                begin=begin, end=end, project_id=project_id, host=host)
 
     def instance_destroy(self, context, instance):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.16'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
-        cctxt = self.client.prepare(version='1.16')
         cctxt.call(context, 'instance_destroy', instance=instance_p)
 
     def instance_info_cache_delete(self, context, instance):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.17'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
-        cctxt = self.client.prepare(version='1.17')
         cctxt.call(context, 'instance_info_cache_delete', instance=instance_p)
 
     def instance_type_get(self, context, instance_type_id):
-        cctxt = self.client.prepare(version='1.18')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.18'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'instance_type_get',
-                          instance_type_id=instance_type_id)
+                instance_type_id=instance_type_id)
 
     def vol_get_usage_by_time(self, context, start_time):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.19'
+        cctxt = self.client.prepare(version=version)
         start_time_p = jsonutils.to_primitive(start_time)
-        cctxt = self.client.prepare(version='1.19')
         return cctxt.call(context, 'vol_get_usage_by_time',
-                          start_time=start_time_p)
+                start_time=start_time_p)
 
     def vol_usage_update(self, context, vol_id, rd_req, rd_bytes, wr_req,
-                         wr_bytes, instance, last_refreshed=None,
-                         update_totals=False):
+                         wr_bytes, instance, update_totals=False):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.19'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
-        cctxt = self.client.prepare(version='1.19')
-        return cctxt.call(context, 'vol_usage_update',
-                          vol_id=vol_id, rd_req=rd_req,
-                          rd_bytes=rd_bytes, wr_req=wr_req,
-                          wr_bytes=wr_bytes,
-                          instance=instance_p, last_refreshed=last_refreshed,
-                          update_totals=update_totals)
+        return cctxt.call(context, 'vol_usage_update', vol_id=vol_id,
+                rd_req=rd_req, rd_bytes=rd_bytes, wr_req=wr_req,
+                wr_bytes=wr_bytes, instance=instance_p,
+                update_totals=update_totals)
 
     def service_get_all_by(self, context, topic=None, host=None, binary=None):
-        cctxt = self.client.prepare(version='1.28')
-        return cctxt.call(context, 'service_get_all_by',
-                          topic=topic, host=host, binary=binary)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.28'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(context, 'service_get_all_by', topic=topic,
+                host=host, binary=binary)
 
     def instance_get_all_by_host(self, context, host, node=None,
                                  columns_to_join=None):
-        cctxt = self.client.prepare(version='1.47')
-        return cctxt.call(context, 'instance_get_all_by_host',
-                          host=host, node=node,
-                          columns_to_join=columns_to_join)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.47'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(context, 'instance_get_all_by_host', host=host,
+                node=node, columns_to_join=columns_to_join)
 
     def instance_fault_create(self, context, values):
-        cctxt = self.client.prepare(version='1.36')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.36'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'instance_fault_create', values=values)
 
     def action_event_start(self, context, values):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.25'
+        cctxt = self.client.prepare(version=version)
         values_p = jsonutils.to_primitive(values)
-        cctxt = self.client.prepare(version='1.25')
         return cctxt.call(context, 'action_event_start', values=values_p)
 
     def action_event_finish(self, context, values):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.25'
+        cctxt = self.client.prepare(version=version)
         values_p = jsonutils.to_primitive(values)
-        cctxt = self.client.prepare(version='1.25')
         return cctxt.call(context, 'action_event_finish', values=values_p)
 
     def service_create(self, context, values):
-        cctxt = self.client.prepare(version='1.27')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.27'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'service_create', values=values)
 
     def service_destroy(self, context, service_id):
-        cctxt = self.client.prepare(version='1.29')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.29'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'service_destroy', service_id=service_id)
 
     def compute_node_create(self, context, values):
-        cctxt = self.client.prepare(version='1.33')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.33'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'compute_node_create', values=values)
 
     def compute_node_update(self, context, node, values, prune_stats=False):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.33'
+        cctxt = self.client.prepare(version=version)
         node_p = jsonutils.to_primitive(node)
-        cctxt = self.client.prepare(version='1.33')
-        return cctxt.call(context, 'compute_node_update',
-                          node=node_p, values=values,
-                          prune_stats=prune_stats)
+        return cctxt.call(context, 'compute_node_update', node=node_p,
+                values=values, prune_stats=prune_stats)
 
     def compute_node_delete(self, context, node):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.44'
+        cctxt = self.client.prepare(version=version)
         node_p = jsonutils.to_primitive(node)
-        cctxt = self.client.prepare(version='1.44')
         return cctxt.call(context, 'compute_node_delete', node=node_p)
 
     def service_update(self, context, service, values):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.34'
+        cctxt = self.client.prepare(version=version)
         service_p = jsonutils.to_primitive(service)
-        cctxt = self.client.prepare(version='1.34')
-        return cctxt.call(context, 'service_update',
-                          service=service_p, values=values)
+        return cctxt.call(context, 'service_update', service=service_p,
+                values=values)
 
     def task_log_get(self, context, task_name, begin, end, host, state=None):
-        cctxt = self.client.prepare(version='1.37')
-        return cctxt.call(context, 'task_log_get',
-                          task_name=task_name, begin=begin, end=end,
-                          host=host, state=state)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.37'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(context, 'task_log_get', task_name=task_name,
+                begin=begin, end=end, host=host, state=state)
 
     def task_log_begin_task(self, context, task_name, begin, end, host,
                             task_items=None, message=None):
-        cctxt = self.client.prepare(version='1.37')
-        return cctxt.call(context, 'task_log_begin_task',
-                          task_name=task_name,
-                          begin=begin, end=end, host=host,
-                          task_items=task_items, message=message)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.37'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(context, 'task_log_begin_task', task_name=task_name,
+                begin=begin, end=end, host=host, task_items=task_items,
+                message=message)
 
     def task_log_end_task(self, context, task_name, begin, end, host, errors,
                           message=None):
-        cctxt = self.client.prepare(version='1.37')
-        return cctxt.call(context, 'task_log_end_task',
-                          task_name=task_name, begin=begin, end=end,
-                          host=host, errors=errors, message=message)
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.37'
+        cctxt = self.client.prepare(version=version)
+        return cctxt.call(context, 'task_log_end_task', task_name=task_name,
+                begin=begin, end=end, host=host, errors=errors,
+                message=message)
 
     def notify_usage_exists(self, context, instance, current_period=False,
                             ignore_missing_network_data=True,
                             system_metadata=None, extra_usage_info=None):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.39'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
         system_metadata_p = jsonutils.to_primitive(system_metadata)
         extra_usage_info_p = jsonutils.to_primitive(extra_usage_info)
-        cctxt = self.client.prepare(version='1.39')
         return cctxt.call(
             context, 'notify_usage_exists',
             instance=instance_p,
@@ -419,66 +548,104 @@ class ConductorAPI(rpcclient.RpcProxy):
             extra_usage_info=extra_usage_info_p)
 
     def security_groups_trigger_handler(self, context, event, args):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.40'
+        cctxt = self.client.prepare(version=version)
         args_p = jsonutils.to_primitive(args)
-        cctxt = self.client.prepare(version='1.40')
         return cctxt.call(context, 'security_groups_trigger_handler',
-                          event=event, args=args_p)
+                event=event, args=args_p)
 
     def security_groups_trigger_members_refresh(self, context, group_ids):
-        cctxt = self.client.prepare(version='1.40')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.40'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'security_groups_trigger_members_refresh',
-                          group_ids=group_ids)
+                group_ids=group_ids)
 
     def network_migrate_instance_start(self, context, instance, migration):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.41'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
         migration_p = jsonutils.to_primitive(migration)
-        cctxt = self.client.prepare(version='1.41')
         return cctxt.call(context, 'network_migrate_instance_start',
-                          instance=instance_p, migration=migration_p)
+                instance=instance_p, migration=migration_p)
 
     def network_migrate_instance_finish(self, context, instance, migration):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.41'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
         migration_p = jsonutils.to_primitive(migration)
-        cctxt = self.client.prepare(version='1.41')
         return cctxt.call(context, 'network_migrate_instance_finish',
-                          instance=instance_p, migration=migration_p)
+                instance=instance_p, migration=migration_p)
 
     def quota_commit(self, context, reservations, project_id=None,
                      user_id=None):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.45'
+        cctxt = self.client.prepare(version=version)
         reservations_p = jsonutils.to_primitive(reservations)
-        cctxt = self.client.prepare(version='1.45')
-        return cctxt.call(context, 'quota_commit',
-                          reservations=reservations_p,
-                          project_id=project_id, user_id=user_id)
+        return cctxt.call(context, 'quota_commit', reservations=reservations_p,
+                project_id=project_id, user_id=user_id)
 
     def quota_rollback(self, context, reservations, project_id=None,
                        user_id=None):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.45'
+        cctxt = self.client.prepare(version=version)
         reservations_p = jsonutils.to_primitive(reservations)
-        cctxt = self.client.prepare(version='1.45')
         return cctxt.call(context, 'quota_rollback',
-                          reservations=reservations_p,
-                          project_id=project_id, user_id=user_id)
+                reservations=reservations_p, project_id=project_id,
+                user_id=user_id)
 
     def get_ec2_ids(self, context, instance):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.42'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
-        cctxt = self.client.prepare(version='1.42')
-        return cctxt.call(context, 'get_ec2_ids',
-                          instance=instance_p)
+        return cctxt.call(context, 'get_ec2_ids', instance=instance_p)
 
     def compute_unrescue(self, context, instance):
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.48'
+        cctxt = self.client.prepare(version=version)
         instance_p = jsonutils.to_primitive(instance)
-        cctxt = self.client.prepare(version='1.48')
         return cctxt.call(context, 'compute_unrescue', instance=instance_p)
 
     def object_class_action(self, context, objname, objmethod, objver,
                             args, kwargs):
-        cctxt = self.client.prepare(version='1.50')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.50'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'object_class_action',
                           objname=objname, objmethod=objmethod,
                           objver=objver, args=args, kwargs=kwargs)
 
     def object_action(self, context, objinst, objmethod, args, kwargs):
-        cctxt = self.client.prepare(version='1.50')
+        version = '2.0'
+        if not self.can_send_version('2.0'):
+            # NOTE(russellb) Havana compat
+            version = '1.50'
+        cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'object_action', objinst=objinst,
                           objmethod=objmethod, args=args, kwargs=kwargs)
 
