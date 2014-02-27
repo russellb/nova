@@ -520,7 +520,7 @@ class _VirtDriverTestCase(_FakeDriverBackendTestCase):
 
     @catch_notimplementederror
     def test_get_rdp_console(self):
-        instance_ref, network_info = self._get_running_instance()
+        instance_ref, network_info = self._get_running_instance(obj=True)
         rdp_console = self.connection.get_rdp_console(self.ctxt, instance_ref)
         self.assertIn('internal_access_path', rdp_console)
         self.assertIn('host', rdp_console)

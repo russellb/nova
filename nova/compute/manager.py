@@ -3797,9 +3797,9 @@ class ComputeManager(manager.Manager):
             connect_info['token'] = token
             connect_info['access_url'] = access_url
         except exception.InstanceNotFound:
-            if instance['vm_state'] != vm_states.BUILDING:
+            if instance.vm_state != vm_states.BUILDING:
                 raise
-            raise exception.InstanceNotReady(instance_id=instance['uuid'])
+            raise exception.InstanceNotReady(instance_id=instance.uuid)
 
         return connect_info
 
