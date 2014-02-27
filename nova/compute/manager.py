@@ -1944,19 +1944,19 @@ class ComputeManager(manager.Manager):
         """Delete an instance on this host.  Commit or rollback quotas
         as necessary.
         """
-        instance_uuid = instance['uuid']
-        image = instance['image_ref']
+        instance_uuid = instance.uuid
+        image = instance.image_ref
 
-        if context.is_admin and context.project_id != instance['project_id']:
-            project_id = instance['project_id']
+        if context.is_admin and context.project_id != instance.project_id:
+            project_id = instance.project_id
         else:
             project_id = context.project_id
-        if context.user_id != instance['user_id']:
-            user_id = instance['user_id']
+        if context.user_id != instance.user_id:
+            user_id = instance.user_id
         else:
             user_id = context.user_id
 
-        was_soft_deleted = instance['vm_state'] == vm_states.SOFT_DELETED
+        was_soft_deleted = instance.vm_state == vm_states.SOFT_DELETED
         if was_soft_deleted:
             # Instances in SOFT_DELETED vm_state have already had quotas
             # decremented.
@@ -1969,8 +1969,7 @@ class ComputeManager(manager.Manager):
             reservations = None
 
         try:
-            db_inst = obj_base.obj_to_primitive(instance)
-            self.conductor_api.instance_info_cache_delete(context, db_inst)
+            instance.info_cache.delete()
             self._notify_about_instance_usage(context, instance,
                                               "delete.start")
             self._shutdown_instance(context, db_inst, bdms)
@@ -1995,10 +1994,7 @@ class ComputeManager(manager.Manager):
             instance.terminated_at = timeutils.utcnow()
             instance.save()
             system_meta = utils.instance_sys_meta(instance)
-            db_inst = self.conductor_api.instance_destroy(
-                context, obj_base.obj_to_primitive(instance))
-            instance = instance_obj.Instance._from_db_object(context, instance,
-                                                             db_inst)
+            instance.destroy(context)
         except Exception:
             with excutils.save_and_reraise_exception():
                 self._quota_rollback(context, reservations,
