@@ -681,7 +681,7 @@ class ComputeManager(manager.Manager):
                                     task_states.IMAGE_SNAPSHOT]):
             LOG.debug(_("Instance in transitional state %s at start-up "
                         "clearing task state"),
-                        instance['task_state'], instance=instance)
+                        instance.task_state, instance=instance)
             instance = self._instance_update(context, instance.uuid,
                                    task_state=None)
 
@@ -698,7 +698,7 @@ class ComputeManager(manager.Manager):
                 # we don't want that an exception blocks the init_host
                 msg = _('Failed to complete a deletion')
                 LOG.exception(msg, instance=instance)
-                self._set_instance_error_state(context, instance['uuid'])
+                self._set_instance_obj_error_state(context, instance)
             finally:
                 return
 
@@ -760,7 +760,7 @@ class ComputeManager(manager.Manager):
                 # NOTE(vish): The instance failed to resume, so we set the
                 #             instance to error and attempt to continue.
                 LOG.warning(_('Failed to resume instance'), instance=instance)
-                self._set_instance_error_state(context, instance.uuid)
+                self._set_instance_obj_error_state(context, instance)
 
         elif drv_state == power_state.RUNNING:
             # VMwareAPI drivers will raise an exception
@@ -1210,8 +1210,8 @@ class ComputeManager(manager.Manager):
                            filters, expected_attrs=[], use_slave=True)
 
         for instance in building_insts:
-            if timeutils.is_older_than(instance['created_at'], timeout):
-                self._set_instance_error_state(context, instance['uuid'])
+            if timeutils.is_older_than(instance.created_at, timeout):
+                self._set_instance_obj_error_state(context, instance)
                 LOG.warn(_("Instance build timed out. Set to error state."),
                          instance=instance)
 
@@ -1652,7 +1652,7 @@ class ComputeManager(manager.Manager):
                 LOG.exception(e.format_message(), instance=instance)
                 self._cleanup_allocated_networks(context, instance,
                         requested_networks)
-                self._set_instance_error_state(context, instance.uuid)
+                self._set_instance_obj_error_state(context, instance)
             except exception.UnexpectedDeletingTaskStateError as e:
                 # The instance is deleting, so clean up but don't error.
                 LOG.debug(e.format_message(), instance=instance)
@@ -1664,7 +1664,7 @@ class ComputeManager(manager.Manager):
                 LOG.exception(msg, instance=instance)
                 self._cleanup_allocated_networks(context, instance,
                         requested_networks)
-                self._set_instance_error_state(context, instance.uuid)
+                self._set_instance_obj_error_state(context, instance)
 
         do_build_and_run_instance(context, instance, image, request_spec,
                 filter_properties, admin_password, injected_files,
@@ -2020,7 +2020,7 @@ class ComputeManager(manager.Manager):
     def terminate_instance(self, context, instance, bdms, reservations):
         """Terminate an instance on this host."""
 
-        @utils.synchronized(instance['uuid'])
+        @utils.synchronized(instance.uuid)
         def do_terminate_instance(instance, bdms):
             try:
                 self._delete_instance(context, instance, bdms,
@@ -2034,7 +2034,7 @@ class ComputeManager(manager.Manager):
                 with excutils.save_and_reraise_exception():
                     LOG.exception(_('Setting instance vm_state to ERROR'),
                                   instance=instance)
-                    self._set_instance_error_state(context, instance['uuid'])
+                    self._set_instance_obj_error_state(context, instance)
 
         do_terminate_instance(instance, bdms)
 
@@ -2609,9 +2609,9 @@ class ComputeManager(manager.Manager):
             instance.task_state = None
             instance.save(expected_task_state=task_states.UPDATING_PASSWORD)
             _msg = _('Failed to set admin password. Instance %s is not'
-                     ' running') % instance["uuid"]
+                     ' running') % instance.uuid
             raise exception.InstancePasswordSetFailed(
-                instance=instance['uuid'], reason=_msg)
+                instance=instance.uuid, reason=_msg)
         else:
             try:
                 self.driver.set_admin_password(instance, new_pass)
@@ -2635,14 +2635,13 @@ class ComputeManager(manager.Manager):
                 # Catch all here because this could be anything.
                 LOG.exception(_('set_admin_password failed: %s') % e,
                               instance=instance)
-                self._set_instance_error_state(context,
-                                               instance['uuid'])
+                self._set_instance_obj_error_state(context, instance)
                 # We create a new exception here so that we won't
                 # potentially reveal password information to the
                 # API caller.  The real exception is logged above
                 _msg = _('error setting admin password')
                 raise exception.InstancePasswordSetFailed(
-                    instance=instance['uuid'], reason=_msg)
+                    instance=instance.uuid, reason=_msg)
 
     @wrap_exception()
     @reverts_task_state
@@ -3045,14 +3044,14 @@ class ComputeManager(manager.Manager):
         if not filter_properties:
             filter_properties = {}
 
-        if not instance['host']:
-            self._set_instance_error_state(context, instance['uuid'])
+        if not instance.host:
+            self._set_instance_obj_error_state(context, instance)
             msg = _('Instance has no source host')
             raise exception.MigrationError(msg)
 
-        same_host = instance['host'] == self.host
+        same_host = instance.host == self.host
         if same_host and not CONF.allow_resize_to_same_host:
-            self._set_instance_error_state(context, instance['uuid'])
+            self._set_instance_obj_error_state(context, instance)
             msg = _('destination same as source!')
             raise exception.MigrationError(msg)
 
@@ -3062,7 +3061,7 @@ class ComputeManager(manager.Manager):
         flavors.save_flavor_info(sys_meta, instance_type, prefix='new_')
         # NOTE(mriedem): Stash the old vm_state so we can set the
         # resized/reverted instance back to the same state later.
-        vm_state = instance['vm_state']
+        vm_state = instance.vm_state
         LOG.debug(_('Stashing vm_state: %s'), vm_state, instance=instance)
         sys_meta['old_vm_state'] = vm_state
         instance.save()
@@ -3090,7 +3089,7 @@ class ComputeManager(manager.Manager):
             node = self.driver.get_available_nodes(refresh=True)[0]
             LOG.debug(_("No node specified, defaulting to %s"), node)
 
-        with self._error_out_instance_on_exception(context, instance['uuid'],
+        with self._error_out_instance_on_exception(context, instance.uuid,
                                                    reservations):
             self.conductor_api.notify_usage_exists(
                     context, instance, current_period=True)
@@ -3317,7 +3316,7 @@ class ComputeManager(manager.Manager):
                     LOG.exception(_("Failed to rollback quota for failed "
                                     "finish_resize: %s"),
                                   qr_error, instance=instance)
-                self._set_instance_error_state(context, instance['uuid'])
+                self._set_instance_obj_error_state(context, instance)
 
     @object_compat
     @wrap_exception()
