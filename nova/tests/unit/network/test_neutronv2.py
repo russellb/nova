@@ -2483,6 +2483,26 @@ class TestNeutronv2(TestNeutronv2Base):
         self.assertNotIn('should_create_bridge', net)
         self.assertEqual('port-id', iid)
 
+    def test_nw_info_build_custom_ovs_bridge(self):
+        fake_port = {
+            'fixed_ips': [{'ip_address': '1.1.1.1'}],
+            'id': 'port-id',
+            'network_id': 'net-id',
+            'binding:vif_type': model.VIF_TYPE_OVS,
+            'binding:vif_details': {
+                model.VIF_DETAILS_BRIDGE_NAME: 'custom-bridge-name',
+            }
+        }
+        fake_subnets = [model.Subnet(cidr='1.0.0.0/8')]
+        fake_nets = [{'id': 'net-id', 'name': 'foo', 'tenant_id': 'tenant'}]
+        api = neutronapi.API()
+        self.mox.ReplayAll()
+        neutronapi.get_client('fake')
+        net, iid = api._nw_info_build_network(fake_port, fake_nets,
+                                              fake_subnets)
+        self.assertNotEqual(CONF.neutron.ovs_bridge, net['bridge'])
+        self.assertEqual('custom-bridge-name', net['bridge'])
+
     def test_build_network_info_model(self):
         api = neutronapi.API()
 
